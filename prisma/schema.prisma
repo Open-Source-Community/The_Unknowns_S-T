@@ -136,6 +136,7 @@ model OrderItem {
 
 model Transaction {
   id          Int                 @id @default(autoincrement())
+  idempotencyKey   String?  @unique
   walletId    Int                 @map("wallet_id")
   wallet      Wallet              @relation(fields: [walletId], references: [userId], onDelete: Cascade)
   orderId     Int?                @map("order_id") 

@@ -1,0 +1,176 @@
+import prisma from '../config/prisma.js'
+import crypto from 'crypto' // for genetating refrenceId
+import { TransactionType, TransactionCategory } from '../data/constants.js';
+
+const checkIdempotency = async (tx, idempotencyKey) => {
+    if (!idempotencyKey) return null;
+    return await tx.transaction.findUnique({
+        where: { idempotencyKey: idempotencyKey }
+    });
+};
+
+// deposit
+export const depositToWallet = async (userId, amount, description, idempotencyKey) => {
+    if (!amount || amount <= 0) {
+        throw new Error("Invalid amount. The deposited amount must be greater than zero.");
+    }
+    const uId = parseInt(userId)
+
+    return await prisma.$transaction(async (tx) => {
+
+        const existing = await checkIdempotency(tx, idempotencyKey);
+        if (existing) return { success: true, alreadyProcessed: true };
+
+        const updatedWallet = await tx.wallet.update({
+            where: { userId: uId },
+            data: {
+                realBalance: { increment: amount }
+
+            }
+        });
+
+        await tx.transaction.create({
+            data: {
+                walletId: uId,
+                amount: amount,
+                type: TransactionType.CREDIT,
+                idempotencyKey,
+                category: TransactionCategory.DEPOSIT,
+                description: description || 'Wallet Deposit',
+                referenceId: `DEP-${Date.now()}-${crypto.randomBytes(3).toString('hex').toUpperCase()}`
+            }
+        });
+        return updatedWallet;
+    });
+};
+
+
+// withdraw
+
+export const withdrawFromWallet = async (userId, amount, description, idempotencyKey) => {
+    if (!amount || amount <= 0) {
+        throw new Error("Invalid amount. The withdrawn amount must be greater than zero.");
+    }
+    const uId = parseInt(userId);
+
+    return await prisma.$transaction(async (tx) => {
+        const existing = await checkIdempotency(tx, idempotencyKey);
+        if (existing) return { success: true, alreadyProcessed: true };
+
+        const wallet = await tx.wallet.findUnique({
+            where: { userId: uId },
+        });
+        // Check 1: Existence
+        if (!wallet) {
+            throw new Error("Wallet not found for this user");
+        }
+        // Check 2: Balance
+        if (parseFloat(wallet.realBalance) < amount) {
+            throw new Error("Insufficient balance: You don't have enough funds");
+        }
+
+        const updatedWallet = await tx.wallet.update({
+            where: { userId: uId },
+            data: { realBalance: { decrement: amount } }
+        });
+        await tx.transaction.create({
+            data: {
+                walletId: uId,
+                amount: amount,
+                type: TransactionType.DEBIT,
+                idempotencyKey,
+                category: TransactionCategory.WITHDRAW,
+                description: description || 'Wallet Withdrawal',
+                referenceId: `WTH-${Date.now()}-${crypto.randomBytes(3).toString('hex').toUpperCase()}`
+            }
+        });
+        return updatedWallet;
+    });
+
+};
+
+// transfer funds
+export const transferFunds = async (senderId, receiverId, amount, description, idempotencyKey) => {
+    if (!amount || amount <= 0) {
+        throw new Error("Invalid amount. The transferred amount must be greater than zero.");
+    }
+
+    return await prisma.$transaction(async (tx) => {
+
+        if (idempotencyKey) {
+            const existingTx = await tx.transaction.findUnique({
+                where: { idempotencyKey }
+            });
+            if (existingTx) {
+                return { success: true, message: "Duplicate request ignored", alreadyProcessed: true };
+            }
+        }
+
+        const senderWallet = await tx.wallet.findUnique({ where: { userId: senderId } });
+        if (!senderWallet) throw new Error("Sender wallet not found");
+
+        if (parseFloat(senderWallet.realBalance) < amount) {
+            throw new Error("Insufficient balance");
+        }
+
+        const receiverWallet = await tx.wallet.findUnique({ where: { userId: receiverId } });
+        if (!receiverWallet) throw new Error("Receiver wallet not found");
+
+        await tx.wallet.update({
+            where: { userId: senderId },
+            data: { realBalance: { decrement: amount } }
+        });
+
+        await tx.transaction.create({
+            data: {
+                walletId: senderId,
+                amount,
+                type: TransactionType.DEBIT,
+                category: TransactionCategory.PURCHASE,
+                idempotencyKey,
+                description: `Transfer to User ${receiverId}: ${description}`,
+                referenceId: `TRF-OUT-${Date.now()}-${crypto.randomBytes(3).toString('hex').toUpperCase()}`
+
+            }
+        });
+
+        await tx.wallet.update({
+            where: { userId: receiverId },
+            data: { realBalance: { increment: amount } }
+        });
+
+        await tx.transaction.create({
+            data: {
+                walletId: receiverId,
+                amount,
+                type: TransactionType.CREDIT,
+                category: TransactionCategory.REFUND,
+                idempotencyKey: null,
+                description: `Transfer from User ${senderId}: ${description}`,
+                referenceId: `TRF-IN-${Date.now()}-${crypto.randomBytes(3).toString('hex').toUpperCase()}`
+
+            }
+        });
+
+        return { success: true };
+    });
+};
+
+export const getTransactionHistory = async (userId) => {
+    return await prisma.transaction.findMany({
+        where: { walletId: parseInt(userId) },
+        orderBy: { createdAt: 'desc' },
+    });
+};
+
+export const getWalletByUserId = async (userId) => {
+    return await prisma.wallet.findUnique({
+        where: { userId: parseInt(userId) },
+        include: {
+            transactions: {
+                take: 5,
+                orderBy: { createdAt: 'desc' }
+            }
+        }
+    });
+};
