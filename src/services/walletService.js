@@ -5,7 +5,8 @@ import { TransactionType, TransactionCategory } from '../data/constants.js';
 const checkIdempotency = async (tx, idempotencyKey) => {
     if (!idempotencyKey) return null;
     return await tx.transaction.findUnique({
-        where: { idempotencyKey: idempotencyKey }
+        where: { idempotencyKey: idempotencyKey },
+        include:{wallet:true}
     });
 };
 
@@ -19,7 +20,11 @@ export const depositToWallet = async (userId, amount, description, idempotencyKe
     return await prisma.$transaction(async (tx) => {
 
         const existing = await checkIdempotency(tx, idempotencyKey);
-        if (existing) return { success: true, alreadyProcessed: true };
+        if (existing) return { 
+            success: true, 
+            alreadyProcessed: true,
+        wallet:existing.wallet
+        };
 
         const updatedWallet = await tx.wallet.update({
             where: { userId: uId },
@@ -55,7 +60,11 @@ export const withdrawFromWallet = async (userId, amount, description, idempotenc
 
     return await prisma.$transaction(async (tx) => {
         const existing = await checkIdempotency(tx, idempotencyKey);
-        if (existing) return { success: true, alreadyProcessed: true };
+          if (existing) return { 
+            success: true, 
+            alreadyProcessed: true,
+        wallet:existing.wallet
+        };
 
         const wallet = await tx.wallet.findUnique({
             where: { userId: uId },
@@ -94,40 +103,46 @@ export const transferFunds = async (senderId, receiverId, amount, description, i
     if (!amount || amount <= 0) {
         throw new Error("Invalid amount. The transferred amount must be greater than zero.");
     }
+const sId = parseInt(senderId);
+  const rId = parseInt(receiverId);
 
+  if (isNaN(sId) || isNaN(rId)) {
+    throw new Error("Invalid User IDs");
+  }
     return await prisma.$transaction(async (tx) => {
 
         if (idempotencyKey) {
-            const existingTx = await tx.transaction.findUnique({
-                where: { idempotencyKey }
-            });
+            const existingTx = await checkIdempotency(tx, idempotencyKey);
             if (existingTx) {
-                return { success: true, message: "Duplicate request ignored", alreadyProcessed: true };
+                return { success: true, message: "Duplicate request ignored",
+                     alreadyProcessed: true,
+                    wallet:existingTx.wallet,
+                    };
             }
         }
 
-        const senderWallet = await tx.wallet.findUnique({ where: { userId: senderId } });
+        const senderWallet = await tx.wallet.findUnique({ where: { userId: sId } });
         if (!senderWallet) throw new Error("Sender wallet not found");
 
         if (parseFloat(senderWallet.realBalance) < amount) {
             throw new Error("Insufficient balance");
         }
 
-        const receiverWallet = await tx.wallet.findUnique({ where: { userId: receiverId } });
+        const receiverWallet = await tx.wallet.findUnique({ where: { userId: rId } });
         if (!receiverWallet) throw new Error("Receiver wallet not found");
 
         await tx.wallet.update({
-            where: { userId: senderId },
+            where: { userId: sId },
             data: { realBalance: { decrement: amount } }
         });
 
         await tx.transaction.create({
             data: {
-                walletId: senderId,
-                amount,
+                walletId: sId,
+                amount:-amount,
                 type: TransactionType.DEBIT,
-                category: TransactionCategory.PURCHASE,
-                idempotencyKey,
+                category: TransactionCategory.TRANSFER,
+                idempotencyKey:idempotencyKey,
                 description: `Transfer to User ${receiverId}: ${description}`,
                 referenceId: `TRF-OUT-${Date.now()}-${crypto.randomBytes(3).toString('hex').toUpperCase()}`
 
@@ -135,17 +150,17 @@ export const transferFunds = async (senderId, receiverId, amount, description, i
         });
 
         await tx.wallet.update({
-            where: { userId: receiverId },
+            where: { userId: rId },
             data: { realBalance: { increment: amount } }
         });
 
         await tx.transaction.create({
             data: {
-                walletId: receiverId,
-                amount,
+                walletId: rId,
+                amount:amount,
                 type: TransactionType.CREDIT,
-                category: TransactionCategory.REFUND,
-                idempotencyKey: null,
+                category: TransactionCategory.TRANSFER,
+                idempotencyKey: `${idempotencyKey}-RS`,
                 description: `Transfer from User ${senderId}: ${description}`,
                 referenceId: `TRF-IN-${Date.now()}-${crypto.randomBytes(3).toString('hex').toUpperCase()}`
 

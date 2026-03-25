@@ -8,7 +8,8 @@ export const TransactionCategory = {
   WITHDRAW: 'Withdrawal',
   CASHBACK:'Cashback',
   PURCHASE: 'Purchase',
-  REFUND: 'Refund'
+  REFUND: 'Refund',
+  TRANSFER:'Transfer',
 };
 
 export const UserRole = {
