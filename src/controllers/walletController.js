@@ -1,85 +1,103 @@
-import { depositToWallet, withdrawFromWallet, transferFunds , getTransactionHistory,getWalletByUserId} from "../services/walletService.js";
+import { depositToWallet, withdrawFromWallet, transferFunds, getTransactionHistory, getWalletByUserId } from "../services/walletService.js";
 
-export const deposit = async (req, res) => {
-    const { userId, amount, description } = req.body;
-    const idempotencyKey = req.headers['idempotency-key'];
-
-    try {
-        if (!userId || !amount || amount <= 0) {
-            return res.status(400).json({ 
-                success: false, 
-                error: "Invalid input: userId and a positive amount are required." 
-            });
-        }
-
-        const result = await depositToWallet(userId, amount, description, idempotencyKey);
-
-        if (!result) {
-            return res.status(404).json({ success: false, error: "Wallet not found" });
-        }
-
-        return res.status(200).json({
-            success: true,
-            message: result.alreadyProcessed ? "Duplicate request ignored" : "Deposit Successful!",
-            balance: result.wallet ? result.wallet.realBalance : result.realBalance,
-            alreadyProcessed: result.alreadyProcessed || false
-        });
-
-    } catch (error) {
-        const statusCode = error.message.includes("not found") ? 404 : 500;
-        return res.status(statusCode).json({
-            success: false,
-            error: error.message
-        });
-    }
+const getStatusCode = (message) => {
+  if (message.includes("not found") ||
+    message.includes("does not exist") ||
+    message.includes("no wallet")) return 404;
+  if (message.includes("Insufficient") ||
+    message.includes("Invalid")) return 400;
+  return 500;
 };
 
-export const withdraw=async(req,res)=>{
-    const {userId,amount,description}=req.body;
-    const idempotencyKey = req.headers['idempotency-key'];
-try{
-      if (amount <= 0) {
-      return res.status(400).json({ success: false, error: "Invalid amount. The withdrawn amount must be greater than zero." });
+export const deposit = async (req, res) => {
+  const { userId, amount, description } = req.body;
+  const idempotencyKey = req.headers['idempotency-key'];
+
+  try {
+    const uId = parseInt(userId);
+    if (!uId || !amount || amount <= 0) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid input: userId and a positive amount are required."
+      });
     }
 
-  const result = await withdrawFromWallet(userId, amount, description, idempotencyKey);
+    const result = await depositToWallet(uId, amount, description, idempotencyKey);
 
-        if (!result) {
-            return res.status(404).json({ success: false, error: "Wallet not found" });
-        }
+    if (!result) {
+      return res.status(404).json({ success: false, error: "Wallet not found" });
+    }
 
-const wallet=await withdrawFromWallet(userId,amount,description,idempotencyKey);
-res.json({
-     success: true,
-            message: result.alreadyProcessed ? "Duplicate request ignored" : "Withdrawal successful!",
-            balance: result.wallet ? result.wallet.realBalance : result.realBalance,
-            alreadyProcessed: result.alreadyProcessed || false
-});
-}catch(error){
-res.status(400).json({success:false, error:error.message});
-}
+    return res.status(200).json({
+      success: true,
+      message: result.alreadyProcessed ? "Duplicate request ignored" : "Deposit Successful!",
+      balance: result.wallet.realBalance,
+      alreadyProcessed: result.alreadyProcessed || false
+    });
+
+  } catch (error) {
+    return res.status(getStatusCode(error.message))
+      .json({ success: false, error: error.message });
+  }
+};
+
+export const withdraw = async (req, res) => {
+  const { userId, amount, description } = req.body;
+  const idempotencyKey = req.headers['idempotency-key'];
+  try {
+    const uId = parseInt(userId);
+    if (!uId || !amount || amount <= 0) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid input: userId and a positive amount are required."
+      });
+    }
+
+
+    const result = await withdrawFromWallet(uId, amount, description, idempotencyKey);
+
+    if (!result) {
+      return res.status(404).json({ success: false, error: "Wallet not found" });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: result.alreadyProcessed ? "Duplicate request ignored" : "Withdrawal successful!",
+      balance: result.wallet.realBalance,
+      alreadyProcessed: result.alreadyProcessed || false
+    });
+  } catch (error) {
+    return res.status(getStatusCode(error.message))
+      .json({ success: false, error: error.message });
+  }
 };
 
 export const transfer = async (req, res) => {
   const { senderId, receiverId, amount, description } = req.body;
-  const idempotencyKey = req.headers['idempotency-key']; 
+  const idempotencyKey = req.headers['idempotency-key'];
+
   try {
-    if (senderId === receiverId) {
+    const sId = parseInt(senderId);
+    const rId = parseInt(receiverId);
+
+    if (sId === rId) {
       return res.status(400).json({ success: false, error: "Cannot transfer to yourself" });
     }
-    if (amount <= 0) {
+    if (!amount || amount <= 0) {
       return res.status(400).json({ success: false, error: "Invalid amount. The transferred amount must be greater than zero." });
     }
 
-    const result = await transferFunds(senderId, receiverId, amount, description,idempotencyKey);
-    
-    res.status(200).json({
-      data: result
+    const result = await transferFunds(sId, rId, amount, description, idempotencyKey);
+
+    return res.status(200).json({
+      success: true,
+      message: result.alreadyProcessed ? "Duplicate request ignored" : "Transfer Successful!",
+      balance: result.wallet.realBalance,
+      alreadyProcessed: result.alreadyProcessed || false
     });
   } catch (error) {
-    console.error("Transfer Error:", error.message);
-    res.status(400).json({ success: false, error: error.message });
-    
+    return res.status(getStatusCode(error.message))
+      .json({ success: false, error: error.message });
   }
 };
 
@@ -94,7 +112,8 @@ export const getHistory = async (req, res) => {
       data: history
     });
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    return res.status(getStatusCode(error.message))
+      .json({ success: false, error: error.message });
   }
 };
 
@@ -104,8 +123,8 @@ export const getBalance = async (req, res) => {
   const { userId } = req.params;
   try {
     const wallet = await getWalletByUserId(userId);
-    
-    if(!wallet) {
+
+    if (!wallet) {
       return res.status(404).json({ success: false, error: "Wallet not found" });
     }
 
@@ -116,7 +135,8 @@ export const getBalance = async (req, res) => {
       recentTransactions: wallet.transactions
     });
   } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
+    return res.status(getStatusCode(error.message))
+      .json({ success: false, error: error.message });
   }
 };
 

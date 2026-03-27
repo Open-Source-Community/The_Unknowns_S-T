@@ -57,7 +57,7 @@ const userExists = await prisma.user.findUnique({
                 referenceId: `DEP-${Date.now()}-${crypto.randomBytes(3).toString('hex').toUpperCase()}`
             }
         });
-        return updatedWallet;
+       return { success: true, wallet: updatedWallet };
     });
 };
 
@@ -107,7 +107,7 @@ const userExists = await prisma.user.findUnique({
         await tx.transaction.create({
             data: {
                 walletId: uId,
-                amount: amount,
+                amount: -amount,
                 type: TransactionType.DEBIT,
                 idempotencyKey,
                 category: TransactionCategory.WITHDRAW,
@@ -115,7 +115,7 @@ const userExists = await prisma.user.findUnique({
                 referenceId: `WTH-${Date.now()}-${crypto.randomBytes(3).toString('hex').toUpperCase()}`
             }
         });
-        return updatedWallet;
+        return { success: true, wallet: updatedWallet };
     });
 
 };
@@ -181,23 +181,21 @@ const updatedSenderWallet = await tx.wallet.update({
                 amount:amount,
                 type: TransactionType.CREDIT,
                 category: TransactionCategory.TRANSFER,
-                idempotencyKey: `${idempotencyKey}-RS`,
+                idempotencyKey: idempotencyKey ? `${idempotencyKey}-RS` : null,
                 description: `Transfer from User ${senderId}: ${description}`,
                 referenceId: `TRF-IN-${Date.now()}-${crypto.randomBytes(3).toString('hex').toUpperCase()}`
 
             }
         });
 
-       return { 
-            wallet: updatedSenderWallet 
-        };
+       return { success: true, wallet: updatedSenderWallet };
     });
 };
 
 export const getTransactionHistory = async (userId) => {
     const uId = parseInt(userId);
     return await prisma.transaction.findMany({
-        where: { walletId: parseInt(uId) },
+        where: { walletId: uId },
         orderBy: { createdAt: 'desc' },
     });
 };
@@ -205,7 +203,7 @@ export const getTransactionHistory = async (userId) => {
 export const getWalletByUserId = async (userId) => {
       const uId = parseInt(userId);
     return await prisma.wallet.findUnique({
-        where: { userId: parseInt(uId) },
+        where: { userId:uId },
         include: {
             transactions: {
                 take: 5,
