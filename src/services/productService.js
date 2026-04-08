@@ -15,24 +15,22 @@ export const createProduct = async (productData) => {
     });
 };
 
-export const updateProduct = async (id, updateData) => {
-    const existingProduct = await prisma.product.findUnique({
+export const getProductById = async (id) => {
+    return await prisma.product.findUnique({
         where: { id: parseInt(id) }
     });
+};
 
-    if (!existingProduct || existingProduct.isHidden) {
-        throw new Error('Product not found or is currently hidden.');
-    }
-
+export const updateProduct = async (existingProduct, updateData) => {
     return await prisma.product.update({
-        where: { id: parseInt(id) },
+        where: { id: existingProduct.id },
         data: updateData
     });
 };
 
-export const softDeleteProduct = async (id) => {
+export const softDeleteProduct = async (existingProduct) => {
     return await prisma.product.update({
-        where: { id: parseInt(id) },
+        where: { id: existingProduct.id },
         data: { isHidden: true }
     });
 };

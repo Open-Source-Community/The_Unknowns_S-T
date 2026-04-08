@@ -17,9 +17,9 @@ const { default: prisma } = await import('../config/prisma.js');
 const productService = await import('./productService.js');
 
 describe('Product Service', () => {
-    // Clear mocks before each test so counts don't leak
+    
     beforeEach(() => {
-        jest.clearAllMocks();
+        jest.resetAllMocks();
     });
 
     describe('getAllActiveProducts', () => {
@@ -41,6 +41,42 @@ describe('Product Service', () => {
             });
             expect(result).toEqual(mockProducts);
         });
+
+        // EDGE CASE 1: Empty Array
+        it('should return an empty array if no products exist', async () => {
+            prisma.product.findMany.mockResolvedValue([]);
+            
+            const result = await productService.getAllActiveProducts(0, 10);
+            
+            expect(result).toEqual([]);
+            expect(prisma.product.findMany).toHaveBeenCalledTimes(1);
+        });
+    });
+
+    // getProductById Tests
+    describe('getProductById', () => {
+        it('should return a product when found', async () => {
+            const mockProduct = { id: 1, name: 'Keyboard', price: 50 };
+            prisma.product.findUnique.mockResolvedValue(mockProduct);
+
+            const result = await productService.getProductById(1);
+
+            expect(prisma.product.findUnique).toHaveBeenCalledWith({
+                where: { id: 1 }
+            });
+            expect(result).toEqual(mockProduct);
+        });
+
+        it('should return null when the product is not found', async () => {
+            prisma.product.findUnique.mockResolvedValue(null);
+
+            const result = await productService.getProductById(999);
+
+            expect(prisma.product.findUnique).toHaveBeenCalledWith({
+                where: { id: 999 }
+            });
+            expect(result).toBeNull();
+        });
     });
 
     describe('createProduct', () => {
@@ -57,44 +93,44 @@ describe('Product Service', () => {
             });
             expect(result).toEqual(createdProduct);
         });
+
+        // EDGE CASE 2: mockRejectedValue
+        it('should throw an error if the database query fails', async () => {
+            const newProductData = { name: 'Monitor', price: 199.99, sellerId: 1 };
+            const dbError = new Error('Database connection failed');
+            
+            // Simulating a Prisma crash
+            prisma.product.create.mockRejectedValue(dbError);
+
+            await expect(productService.createProduct(newProductData)).rejects.toThrow('Database connection failed');
+            expect(prisma.product.create).toHaveBeenCalledTimes(1);
+        });
     });
 
     describe('updateProduct', () => {
-        it('should throw an error if the product does not exist', async () => {
-            prisma.product.findUnique.mockResolvedValue(null);
+        it('should update the product using the provided product object', async () => {
+            const mockExistingProduct = { id: 1, name: 'Test Product', sellerId: 5 };
+            const updateData = { price: 150 };
 
-            await expect(productService.updateProduct(99, { price: 150 }))
-                .rejects
-                .toThrow('Product not found or is currently hidden.');
-        });
+            prisma.product.update.mockResolvedValue({ ...mockExistingProduct, ...updateData });
 
-        it('should throw an error if the product is hidden', async () => {
-            prisma.product.findUnique.mockResolvedValue({ id: 1, isHidden: true });
-
-            await expect(productService.updateProduct(1, { price: 150 }))
-                .rejects
-                .toThrow('Product not found or is currently hidden.');
-        });
-
-        it('should update the product if it exists and is active', async () => {
-            prisma.product.findUnique.mockResolvedValue({ id: 1, isHidden: false });
-            prisma.product.update.mockResolvedValue({ id: 1, price: 150, isHidden: false });
-
-            const result = await productService.updateProduct(1, { price: 150 });
+            const result = await productService.updateProduct(mockExistingProduct, updateData);
 
             expect(prisma.product.update).toHaveBeenCalledWith({
-                where: { id: 1 },
-                data: { price: 150 }
+                where: { id: 1 }, 
+                data: updateData
             });
             expect(result.price).toBe(150);
         });
     });
 
     describe('softDeleteProduct', () => {
-        it('should set isHidden to true', async () => {
-            prisma.product.update.mockResolvedValue({ id: 1, isHidden: true });
+        it('should set isHidden to true using the provided product object', async () => {
+            const mockExistingProduct = { id: 1, sellerId: 5 };
+            
+            prisma.product.update.mockResolvedValue({ ...mockExistingProduct, isHidden: true });
 
-            const result = await productService.softDeleteProduct(1);
+            const result = await productService.softDeleteProduct(mockExistingProduct);
 
             expect(prisma.product.update).toHaveBeenCalledWith({
                 where: { id: 1 },
