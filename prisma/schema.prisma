@@ -7,140 +7,111 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model User {
-  id            Int            @id @default(autoincrement())
-  email         String         @unique
-  passwordHash  String         @map("password_hash")
-  role          UserRole
-  isActive      Boolean        @default(true) @map("is_active")
-  createdAt     DateTime       @default(now()) @map("created_at")
-  notifications Notification[]
-  orders        Order[]        @relation("BuyerOrders")
-  products      Product[]      @relation("SellerProducts")
-  wallet        Wallet?
+// model User {
+//   id            Int            @id @default(autoincrement())
+//   email         String         @unique
+//   passwordHash  String         @map("password_hash")
+//   role          UserRole
+//   isActive      Boolean        @default(true) @map("is_active")
+//   createdAt     DateTime       @default(now()) @map("created_at")
+//   notifications Notification[]
+//   orders        Order[]        @relation("BuyerOrders")
+//   products      Product[]      @relation("SellerProducts")
+//   wallet        Wallet?
 
-  @@map("users")
-}
+//   @@map("users")
+// }
 
-model Wallet {
-  userId       Int           @id @map("user_id")
-  realBalance  Decimal       @default(0.00) @map("real_balance") @db.Decimal(15, 2)
-  promoBalance Decimal       @default(0.00) @map("promo_balance") @db.Decimal(15, 2)
-  updatedAt    DateTime      @updatedAt @map("updated_at")
-  transactions Transaction[]
-  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+// model Wallet {
+//   userId       Int           @id @map("user_id")
+//   realBalance  Decimal       @default(0.00) @map("real_balance") @db.Decimal(15, 2)
+//   promoBalance Decimal       @default(0.00) @map("promo_balance") @db.Decimal(15, 2)
+//   updatedAt    DateTime      @updatedAt @map("updated_at")
+//   transactions Transaction[]
+//   user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@map("wallets")
-}
+//   @@map("wallets")
+// }
 
-model Product {
-  id         Int             @id @default(autoincrement())
-  sellerId   Int             @map("seller_id")
-  name       String
-  category   String?
-  price      Decimal         @db.Decimal(10, 2)
-  stock      Int             @default(0)
-  isHidden   Boolean         @default(false) @map("is_hidden")
-  createdAt  DateTime        @default(now()) @map("created_at")
-  updatedAt  DateTime        @updatedAt @map("updated_at")
-  orderItems OrderItem[]
-  details    ProductDetails?
-  seller     User            @relation("SellerProducts", fields: [sellerId], references: [id], onDelete: Cascade)
+// model Product {
+//   id         Int             @id @default(autoincrement())
+//   sellerId   Int             @map("seller_id")
+//   name       String
+//   category   String?
+//   price      Decimal         @db.Decimal(10, 2)
+//   stock      Int             @default(0)
+//   isHidden   Boolean         @default(false) @map("is_hidden")
+//   createdAt  DateTime        @default(now()) @map("created_at")
+//   updatedAt  DateTime        @updatedAt @map("updated_at")
+//   orderItems OrderItem[]
+//   details    ProductDetails?
+//   seller     User            @relation("SellerProducts", fields: [sellerId], references: [id], onDelete: Cascade)
 
-  @@map("products")
-}
+//   @@map("products")
+// }
 
-model ProductDetails {
-  productId   Int     @id @map("product_id")
-  description String?
-  product     Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+// model ProductDetails {
+//   productId   Int     @id @map("product_id")
+//   description String?
+//   product     Product @relation(fields: [productId], references: [id], onDelete: Cascade)
 
-  @@map("product_details")
-}
+//   @@map("product_details")
+// }
 
-model Order {
-  id           Int           @id @default(autoincrement())
-  buyerId      Int           @map("buyer_id")
-  status       OrderStatus   @default(Pending)
-  totalAmount  Decimal       @default(0.00) @map("total_amount") @db.Decimal(15, 2)
-  createdAt    DateTime      @default(now()) @map("created_at")
-  updatedAt    DateTime      @updatedAt @map("updated_at")
-  items        OrderItem[]
-  buyer        User          @relation("BuyerOrders", fields: [buyerId], references: [id], onDelete: Cascade)
-  transactions Transaction[]
+// model Order {
+//   id           Int           @id @default(autoincrement())
+//   buyerId      Int           @map("buyer_id")
+//   status       OrderStatus   @default(Pending)
+//   totalAmount  Decimal       @default(0.00) @map("total_amount") @db.Decimal(15, 2)
+//   createdAt    DateTime      @default(now()) @map("created_at")
+//   updatedAt    DateTime      @updatedAt @map("updated_at")
+//   items        OrderItem[]
+//   buyer        User          @relation("BuyerOrders", fields: [buyerId], references: [id], onDelete: Cascade)
+//   transactions Transaction[]
 
-  @@map("orders")
-}
+//   @@map("orders")
+// }
 
-model OrderItem {
-  id              Int      @id @default(autoincrement())
-  orderId         Int      @map("order_id")
-  productId       Int      @map("product_id")
-  quantity        Int
-  priceAtPurchase Decimal  @map("price_at_purchase") @db.Decimal(10, 2)
-  createdAt       DateTime @default(now()) @map("created_at")
-  order           Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  product         Product  @relation(fields: [productId], references: [id])
+// model OrderItem {
+//   id              Int      @id @default(autoincrement())
+//   orderId         Int      @map("order_id")
+//   productId       Int      @map("product_id")
+//   quantity        Int
+//   priceAtPurchase Decimal  @map("price_at_purchase") @db.Decimal(10, 2)
+//   createdAt       DateTime @default(now()) @map("created_at")
+//   order           Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+//   product         Product  @relation(fields: [productId], references: [id])
 
-  @@map("order_items")
-}
+//   @@map("order_items")
+// }
 
-model Transaction {
-  id             Int                 @id @default(autoincrement())
-  idempotencyKey String?             @unique
-  walletId       Int                 @map("wallet_id")
-  orderId        Int?                @map("order_id")
-  amount         Decimal             @db.Decimal(15, 2)
-  type           TransactionType
-  category       TransactionCategory
-  referenceId    String              @unique @map("reference_id")
-  description    String?
-  createdAt      DateTime            @default(now()) @map("created_at")
-  order          Order?              @relation(fields: [orderId], references: [id])
-  wallet         Wallet              @relation(fields: [walletId], references: [userId], onDelete: Cascade)
+// model Transaction {
+//   id             Int                 @id @default(autoincrement())
+//   idempotencyKey String?             @unique
+//   walletId       Int                 @map("wallet_id")
+//   orderId        Int?                @map("order_id")
+//   amount         Decimal             @db.Decimal(15, 2)
+//   type           TransactionType
+//   category       TransactionCategory
+//   referenceId    String              @unique @map("reference_id")
+//   description    String?
+//   createdAt      DateTime            @default(now()) @map("created_at")
+//   order          Order?              @relation(fields: [orderId], references: [id])
+//   wallet         Wallet              @relation(fields: [walletId], references: [userId], onDelete: Cascade)
 
-  @@map("transactions")
-}
+//   @@map("transactions")
+// }
 
-model Notification {
-  id        Int      @id @default(autoincrement())
-  userId    Int      @map("user_id")
-  message   String
-  isRead    Boolean  @default(false) @map("is_read")
-  createdAt DateTime @default(now()) @map("created_at")
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+// model Notification {
+//   id        Int      @id @default(autoincrement())
+//   userId    Int      @map("user_id")
+//   message   String
+//   isRead    Boolean  @default(false) @map("is_read")
+//   createdAt DateTime @default(now()) @map("created_at")
+//   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@map("notifications")
-}
-
-enum UserRole {
-  Admin
-  Seller
-  Buyer
-}
-
-enum OrderStatus {
-  Pending
-  Paid
-  Shipped
-  Cancelled
-}
-
-enum TransactionType {
-  Credit
-  Debit
-}
-
-enum TransactionCategory {
-  Deposit
-  Purchase
-  Refund
-  Cashback
-  Withdrawal
-  Transfer
-}
-<<<<<<< HEAD
-=======
+//   @@map("notifications")
+// }
 
 // ==========================================
 // MODELS
@@ -237,6 +208,7 @@ model OrderItem {
 
 model Transaction {
   id          Int                 @id @default(autoincrement())
+  idempotencyKey String?             @unique
   walletId    Int                 @map("wallet_id")
   wallet      Wallet              @relation(fields: [walletId], references: [userId], onDelete: Cascade)
   orderId     Int?                @map("order_id") 
@@ -261,4 +233,30 @@ model Notification {
 
   @@map("notifications")
 }
->>>>>>> master
+
+enum UserRole {
+  Admin
+  Seller
+  Buyer
+}
+
+enum OrderStatus {
+  Pending
+  Paid
+  Shipped
+  Cancelled
+}
+
+enum TransactionType {
+  Credit
+  Debit
+}
+
+enum TransactionCategory {
+  Deposit
+  Purchase
+  Refund
+  Cashback
+  Withdrawal
+  Transfer
+}

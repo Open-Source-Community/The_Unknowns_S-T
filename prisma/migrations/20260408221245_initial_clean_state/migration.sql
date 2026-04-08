@@ -8,14 +8,14 @@ CREATE TYPE "OrderStatus" AS ENUM ('Pending', 'Paid', 'Shipped', 'Cancelled');
 CREATE TYPE "TransactionType" AS ENUM ('Credit', 'Debit');
 
 -- CreateEnum
-CREATE TYPE "TransactionCategory" AS ENUM ('Deposit', 'Purchase', 'Refund', 'Cashback', 'Withdrawal');
+CREATE TYPE "TransactionCategory" AS ENUM ('Deposit', 'Purchase', 'Refund', 'Cashback', 'Withdrawal', 'Transfer');
 
 -- CreateTable
 CREATE TABLE "users" (
     "id" SERIAL NOT NULL,
     "email" TEXT NOT NULL,
     "password_hash" TEXT NOT NULL,
-    "role" "UserRole" NOT NULL,
+    "role" "UserRole" NOT NULL DEFAULT 'Buyer',
     "is_active" BOOLEAN NOT NULL DEFAULT true,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 

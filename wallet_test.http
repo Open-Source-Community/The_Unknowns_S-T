@@ -1,0 +1,121 @@
+import { TransactionType, TransactionCategory, UserRole } from '../data/constants.js';
+
+### 1. Test Registration (Create User + Wallet)
+
+POST http://localhost:3001/api/auth/register
+Content-Type: application/json
+
+{
+    
+    "email": "test1@example.com",
+    "password": "Test123452",
+    "role": "Buyer"
+}
+
+### 1. Test Registration (Create User + Wallet)
+
+POST http://localhost:3001/api/auth/register
+Content-Type: application/json
+
+{
+    
+    "email": "admin@example.com",
+    "password": "Admin123452",
+    "role": "Admin"
+}
+
+### login
+
+POST http://localhost:3001/api/auth/login
+Content-Type: application/json
+
+{
+    "email": "test11@example.com",
+    "password": "Test123452"
+}
+
+
+### login
+
+POST http://localhost:3001/api/auth/login
+Content-Type: application/json
+
+{
+     "email": "admin@example.com",
+    "password": "Admin123452"
+}
+
+
+### 2. Test Getting All Users
+GET http://localhost:3001/api/auth/users
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjIsInJvbGUiOiJBZG1pbiIsImlhdCI6MTc3NTY4NjUwOCwiZXhwIjoxNzc1NzA4MTA4fQ._U1MddSs6emOZLwbX_ip7Lthuf44V4rGsmOOrUPLHls
+
+
+### Deposit money
+POST http://localhost:3001/api/wallet/deposit
+Content-Type: application/json
+Idempotency-Key: dep-unique-7190
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjEsInJvbGUiOiJCdXllciIsImlhdCI6MTc3NTY4NjQ3NiwiZXhwIjoxNzc1NzA4MDc2fQ.5EtXxDu03P0-sVvzrVJ2VjDm97ky111zf_eKnjC9Yi4
+
+{
+    "userId": 2,
+    "amount": 2000.00,
+    "description": "Charging my wallet"
+}
+
+
+### Withdraw money
+POST http://localhost:3001/api/wallet/withdraw
+Content-Type: application/json
+Idempotency-Key: with-unique-453
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjEsInJvbGUiOiJCdXllciIsImlhdCI6MTc3NTY4NjQ3NiwiZXhwIjoxNzc1NzA4MDc2fQ.5EtXxDu03P0-sVvzrVJ2VjDm97ky111zf_eKnjC9Yi4
+
+{
+    "userId": 2,
+    "amount": 500.00,
+    "description": "Cash out"
+}
+
+
+### Test Transfer
+POST http://localhost:3001/api/wallet/transfer
+Content-Type: application/json
+Idempotency-Key: trf-unique-1243
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjEsInJvbGUiOiJCdXllciIsImlhdCI6MTc3NTY4NjQ3NiwiZXhwIjoxNzc1NzA4MDc2fQ.5EtXxDu03P0-sVvzrVJ2VjDm97ky111zf_eKnjC9Yi4
+
+{
+    "senderId": 2,
+    "receiverId": 3,
+    "amount": 100.00,
+    "description": "Lunch money"
+}
+
+
+### 2. Test Getting All transaction history for specific user
+GET http://localhost:3001/api/wallet/history
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjEsInJvbGUiOiJCdXllciIsImlhdCI6MTc3NTY4NjQ3NiwiZXhwIjoxNzc1NzA4MDc2fQ.5EtXxDu03P0-sVvzrVJ2VjDm97ky111zf_eKnjC9Yi4
+
+
+### Get Wallet Balance for Admin
+GET http://localhost:3001/api/wallet/balance
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjIsInJvbGUiOiJBZG1pbiIsImlhdCI6MTc3NTY4NjUwOCwiZXhwIjoxNzc1NzA4MTA4fQ._U1MddSs6emOZLwbX_ip7Lthuf44V4rGsmOOrUPLHls
+
+
+
+### Test Idempotency (Run this twice!)
+POST http://localhost:3001/api/wallet/transfer
+Content-Type: application/json
+Idempotency-Key: superm-test-9724
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjEsInJvbGUiOiJCdXllciIsImlhdCI6MTc3NTY4NjQ3NiwiZXhwIjoxNzc1NzA4MDc2fQ.5EtXxDu03P0-sVvzrVJ2VjDm97ky111zf_eKnjC9Yi4
+
+{
+    "senderId": 11,
+    "receiverId": 7,
+    "amount": 10
+}
+
+
+### get all wallets for admin
+
+GET http://localhost:3001/api/wallet/admin/all-wallets
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOjIsInJvbGUiOiJBZG1pbiIsImlhdCI6MTc3NTY4NjUwOCwiZXhwIjoxNzc1NzA4MTA4fQ._U1MddSs6emOZLwbX_ip7Lthuf44V4rGsmOOrUPLHls

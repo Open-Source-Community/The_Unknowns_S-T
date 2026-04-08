@@ -1,4 +1,5 @@
-import { depositToWallet, withdrawFromWallet, transferFunds, getTransactionHistory, getWalletByUserId } from "../services/walletService.js";
+import { count } from "node:console";
+import { depositToWallet, withdrawFromWallet, transferFunds, getTransactionHistory, getWalletByUserId , getAllWallets} from "../services/walletService.js";
 
 const getStatusCode = (message) => {
   if (message.includes("not found") ||
@@ -10,10 +11,12 @@ const getStatusCode = (message) => {
 };
 
 export const deposit = async (req, res) => {
-  const { userId, amount, description } = req.body;
+  const {userId}=req.user;
+  const {  amount, description } = req.body;
   const idempotencyKey = req.headers['idempotency-key'];
 
   try {
+
     const uId = parseInt(userId);
     if (!uId || !amount || amount <= 0) {
       return res.status(400).json({
@@ -42,9 +45,11 @@ export const deposit = async (req, res) => {
 };
 
 export const withdraw = async (req, res) => {
-  const { userId, amount, description } = req.body;
+    const {userId}=req.user;
+  const { amount, description } = req.body;
   const idempotencyKey = req.headers['idempotency-key'];
   try {
+
     const uId = parseInt(userId);
     if (!uId || !amount || amount <= 0) {
       return res.status(400).json({
@@ -73,13 +78,20 @@ export const withdraw = async (req, res) => {
 };
 
 export const transfer = async (req, res) => {
-  const { senderId, receiverId, amount, description } = req.body;
+  const {userId:senderId} = req.user;
+  const { receiverId, amount, description } = req.body;
   const idempotencyKey = req.headers['idempotency-key'];
 
   try {
+
     const sId = parseInt(senderId);
     const rId = parseInt(receiverId);
-
+ if (!sId||!rId ) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid input: user Id is required."
+      });
+    }
     if (sId === rId) {
       return res.status(400).json({ success: false, error: "Cannot transfer to yourself" });
     }
@@ -103,9 +115,17 @@ export const transfer = async (req, res) => {
 
 
 export const getHistory = async (req, res) => {
-  const { userId } = req.params;
+  const { userId } = req.user;
+
   try {
-    const history = await getTransactionHistory(userId);
+    const uId = parseInt(userId);
+     if (!uId ) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid input: user Id is required."
+      });
+    }
+    const history = await getTransactionHistory(uId);
     res.status(200).json({
       success: true,
       count: history.length,
@@ -120,9 +140,17 @@ export const getHistory = async (req, res) => {
 
 
 export const getBalance = async (req, res) => {
-  const { userId } = req.params;
+    const { userId } = req.user;
   try {
-    const wallet = await getWalletByUserId(userId);
+
+       const uId = parseInt(userId);
+     if (!uId ) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid input: user Id is required."
+      });
+    }
+    const wallet = await getWalletByUserId(uId);
 
     if (!wallet) {
       return res.status(404).json({ success: false, error: "Wallet not found" });
@@ -133,6 +161,27 @@ export const getBalance = async (req, res) => {
       balance: wallet.realBalance,
       promoBalance: wallet.promoBalance,
       recentTransactions: wallet.transactions
+    });
+  } catch (error) {
+    return res.status(getStatusCode(error.message))
+      .json({ success: false, error: error.message });
+  }
+};
+
+
+
+
+export const getAllWalletsForAdmin = async (req, res) => {
+  try {
+    const wallets = await getAllWallets();
+
+if (!wallets || wallets.length === 0) {
+  return res.status(404).json({ success: false, error: "No Wallets found" });
+}
+    res.status(200).json({
+      success: true,
+      count:wallets.length,
+      data: wallets
     });
   } catch (error) {
     return res.status(getStatusCode(error.message))
