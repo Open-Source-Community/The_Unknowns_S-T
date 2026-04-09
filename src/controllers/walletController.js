@@ -1,14 +1,6 @@
 import { count } from "node:console";
 import { depositToWallet, withdrawFromWallet, transferFunds, getTransactionHistory, getWalletByUserId , getAllWallets} from "../services/walletService.js";
 
-const getStatusCode = (message) => {
-  if (message.includes("not found") ||
-    message.includes("does not exist") ||
-    message.includes("no wallet")) return 404;
-  if (message.includes("Insufficient") ||
-    message.includes("Invalid")) return 400;
-  return 500;
-};
 
 export const deposit = async (req, res) => {
   const {userId}=req.user;
@@ -39,9 +31,11 @@ export const deposit = async (req, res) => {
     });
 
   } catch (error) {
-    return res.status(getStatusCode(error.message))
-      .json({ success: false, error: error.message });
-  }
+    return res.status(error.statusCode || 500).json({ 
+        success: false, 
+        error: error.message 
+    });
+}
 };
 
 export const withdraw = async (req, res) => {
@@ -72,9 +66,11 @@ export const withdraw = async (req, res) => {
       alreadyProcessed: result.alreadyProcessed || false
     });
   } catch (error) {
-    return res.status(getStatusCode(error.message))
-      .json({ success: false, error: error.message });
-  }
+    return res.status(error.statusCode || 500).json({ 
+        success: false, 
+        error: error.message 
+    });
+}
 };
 
 export const transfer = async (req, res) => {
@@ -108,9 +104,11 @@ export const transfer = async (req, res) => {
       alreadyProcessed: result.alreadyProcessed || false
     });
   } catch (error) {
-    return res.status(getStatusCode(error.message))
-      .json({ success: false, error: error.message });
-  }
+    return res.status(error.statusCode || 500).json({ 
+        success: false, 
+        error: error.message 
+    });
+}
 };
 
 
@@ -132,9 +130,11 @@ export const getHistory = async (req, res) => {
       data: history
     });
   } catch (error) {
-    return res.status(getStatusCode(error.message))
-      .json({ success: false, error: error.message });
-  }
+    return res.status(error.statusCode || 500).json({ 
+        success: false, 
+        error: error.message 
+    });
+}
 };
 
 
@@ -163,9 +163,11 @@ export const getBalance = async (req, res) => {
       recentTransactions: wallet.transactions
     });
   } catch (error) {
-    return res.status(getStatusCode(error.message))
-      .json({ success: false, error: error.message });
-  }
+    return res.status(error.statusCode || 500).json({ 
+        success: false, 
+        error: error.message 
+    });
+}
 };
 
 
@@ -183,9 +185,11 @@ if (!wallets || wallets.length === 0) {
       count:wallets.length,
       data: wallets
     });
-  } catch (error) {
-    return res.status(getStatusCode(error.message))
-      .json({ success: false, error: error.message });
-  }
+ } catch (error) {
+    return res.status(error.statusCode || 500).json({ 
+        success: false, 
+        error: error.message 
+    });
+}
 };
 

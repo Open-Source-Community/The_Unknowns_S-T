@@ -13,7 +13,9 @@ const checkIdempotency = async (tx, idempotencyKey) => {
 // deposit
 export const depositToWallet = async (userId, amount, description, idempotencyKey) => {
     if (!amount || amount <= 0) {
-        throw new Error("Invalid amount. The deposited amount must be greater than zero.");
+        const error= new Error("Invalid amount. The deposited amount must be greater than zero.");
+        error.statusCode = 400;
+        throw  error;
     }
     const uId = parseInt(userId)
 
@@ -23,12 +25,18 @@ export const depositToWallet = async (userId, amount, description, idempotencyKe
     });
 
     if (!userExists) {
-        throw new Error("User does not exist in the system.");
-    }
-    if (!userExists.wallet) {
-        throw new Error("User found, but no wallet is associated with this account.");
+
+       const error =new Error("User does not exist in the system.");
+        error.statusCode = 404;
+        throw  error;
     }
 
+
+    if (!userExists.wallet) {
+       const error= new Error("User found, but no wallet is associated with this account.");
+        error.statusCode = 404;
+        throw  error;
+    }
     return await prisma.$transaction(async (tx) => {
 
         const existing = await checkIdempotency(tx, idempotencyKey);
@@ -66,7 +74,9 @@ export const depositToWallet = async (userId, amount, description, idempotencyKe
 
 export const withdrawFromWallet = async (userId, amount, description, idempotencyKey) => {
     if (!amount || amount <= 0) {
-        throw new Error("Invalid amount. The withdrawn amount must be greater than zero.");
+        const error = new Error("Invalid amount. The withdrawn amount must be greater than zero.");
+        error.statusCode = 400;
+        throw  error;
     }
     const uId = parseInt(userId);
     const userExists = await prisma.user.findUnique({
@@ -75,10 +85,14 @@ export const withdrawFromWallet = async (userId, amount, description, idempotenc
     });
 
     if (!userExists) {
-        throw new Error("User does not exist in the system.");
+        const error =  new Error("User does not exist in the system.");
+        error.statusCode = 404;
+        throw  error;
     }
     if (!userExists.wallet) {
-        throw new Error("User found, but no wallet is associated with this account.");
+        const error =  new Error("User found, but no wallet is associated with this account.");
+        error.statusCode = 404;
+        throw  error;
     }
     return await prisma.$transaction(async (tx) => {
         const existing = await checkIdempotency(tx, idempotencyKey);
@@ -93,12 +107,16 @@ export const withdrawFromWallet = async (userId, amount, description, idempotenc
         });
         // Check 1: Existence
         if (!wallet) {
-            throw new Error("Wallet not found for this user");
-        }
+             const error = new Error("Wallet not found for this user");
+               error.statusCode = 404;
+        throw  error;
+    }
         // Check 2: Balance
         if (parseFloat(wallet.realBalance) < amount) {
-            throw new Error("Insufficient balance: You don't have enough funds");
-        }
+             const error =  new Error("Insufficient balance: You don't have enough funds");
+                error.statusCode = 400;
+        throw  error;
+    }
 
         const updatedWallet = await tx.wallet.update({
             where: { userId: uId },
@@ -107,7 +125,7 @@ export const withdrawFromWallet = async (userId, amount, description, idempotenc
         await tx.transaction.create({
             data: {
                 walletId: uId,
-                amount: -amount,
+                amount: amount,
                 type: TransactionType.DEBIT,
                 idempotencyKey,
                 category: TransactionCategory.WITHDRAW,
@@ -123,13 +141,18 @@ export const withdrawFromWallet = async (userId, amount, description, idempotenc
 // transfer funds
 export const transferFunds = async (senderId, receiverId, amount, description, idempotencyKey) => {
     if (!amount || amount <= 0) {
-        throw new Error("Invalid amount. The transferred amount must be greater than zero.");
+         const error =  new Error("Invalid amount. The transferred amount must be greater than zero.");
+           error.statusCode = 400;
+        throw  error;
     }
     const sId = parseInt(senderId);
     const rId = parseInt(receiverId);
 
     if (isNaN(sId) || isNaN(rId)) {
-        throw new Error("Invalid User IDs");
+         const error =  new Error("Invalid User IDs");
+                 error.statusCode = 404;
+        throw  error;
+    
     }
     return await prisma.$transaction(async (tx) => {
 
@@ -145,15 +168,23 @@ export const transferFunds = async (senderId, receiverId, amount, description, i
         }
 
         const senderWallet = await tx.wallet.findUnique({ where: { userId: sId } });
-        if (!senderWallet) throw new Error("Sender wallet not found");
-
+        if (!senderWallet)  {
+            const error =  new Error("Sender wallet not found");
+error.statusCode = 404;
+        throw  error;
+    }
         if (parseFloat(senderWallet.realBalance) < amount) {
-            throw new Error("Insufficient balance");
-        }
+             const error =  new Error("Insufficient balance");
+                error.statusCode = 400;
+        throw  error;
+    }
 
         const receiverWallet = await tx.wallet.findUnique({ where: { userId: rId } });
-        if (!receiverWallet) throw new Error("Receiver wallet not found");
-
+        if (!receiverWallet)  {
+            const error =  new Error("Receiver wallet not found");
+        error.statusCode = 404;
+        throw  error;
+   }
         const updatedSenderWallet = await tx.wallet.update({
             where: { userId: sId },
             data: { realBalance: { decrement: amount } }
@@ -161,7 +192,7 @@ export const transferFunds = async (senderId, receiverId, amount, description, i
         await tx.transaction.create({
             data: {
                 walletId: sId,
-                amount: -amount,
+                amount: amount,
                 type: TransactionType.DEBIT,
                 category: TransactionCategory.TRANSFER,
                 idempotencyKey: idempotencyKey,
