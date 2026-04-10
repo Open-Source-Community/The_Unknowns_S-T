@@ -19,6 +19,5 @@ Content-Type: application/json
 }
 
 ### 3. Fetch Profile (Using the token from Step 2)
-# Copy the "token" string from the login response and paste it after "Bearer " below
 GET http://localhost:3001/api/auth/profile
 Authorization: Bearer TheToken

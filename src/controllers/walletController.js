@@ -159,7 +159,7 @@ export const getBalance = async (req, res) => {
     const { userId } = req.user;
   try {
     const uId = parseInt(userId);
-    if (!uId ) {
+    if (!uId) {
       return res.status(400).json({
         success: false,
         error: "Invalid input: user Id is required."

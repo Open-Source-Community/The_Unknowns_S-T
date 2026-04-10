@@ -1,0 +1,51 @@
+### Get All Products (Public)
+GET http://localhost:3001/api/products?skip=0&take=10
+
+### Create Product (Must be Seller)
+POST http://localhost:3001/api/products
+Content-Type: application/json
+Authorization: Bearer YOUR_TOKEN_HERE
+{
+    "name": "Modern Dashboard UI Kit",
+    "price": "25.50",
+    "stock": "100"
+}
+
+### Create Product (Must be Seller)
+POST http://localhost:3001/api/products
+Content-Type: application/json
+Authorization: Bearer YOUR_TOKEN_HERE
+
+{
+    "name": "Mobile App",
+    "price": "2500",
+    "stock": "10"
+}
+
+### Update Product
+PATCH http://localhost:3001/api/products/6
+Content-Type: application/json
+Authorization: Bearer YOUR_TOKEN_HERE
+
+{
+    "price": 19.99,
+    "stock": 50
+}
+
+
+### Delete Product
+DELETE http://localhost:3001/api/products/6
+Authorization: Bearer YOUR_TOKEN_HERE
+
+
+### Get Products For Specific Seller (Must be Seller)
+GET http://localhost:3001/api/products/my-products
+Content-Type: application/json
+Authorization: Bearer YOUR_TOKEN_HERE
+
+
+
+
+
+
+

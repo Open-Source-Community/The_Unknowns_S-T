@@ -90,16 +90,16 @@ export const withdrawFromWallet = async (userId, amount, description, idempotenc
         });
         // Check 1: Existence
         if (!wallet) {
-             const error = new Error("Wallet not found for this user");
-               error.statusCode = 404;
-        throw  error;
-    }
+            const error = new Error("Wallet not found for this user");
+            error.statusCode = 404;
+            throw  error;
+        }
         // Check 2: Balance
         if (parseFloat(wallet.realBalance) < amount) {
-             const error =  new Error("Insufficient balance: You don't have enough funds");
-                error.statusCode = 400;
-        throw  error;
-    }
+            const error =  new Error("Insufficient balance: You don't have enough funds");
+            error.statusCode = 400;
+            throw  error;
+        }
 
         const updatedWallet = await tx.wallet.update({
             where: { userId: uId },
