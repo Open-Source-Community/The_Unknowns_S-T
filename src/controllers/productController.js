@@ -1,3 +1,4 @@
+import { count } from 'node:console';
 import * as productService from '../services/productService.js';
 
 export const getAllProducts = async (req, res) => {
@@ -11,6 +12,28 @@ export const getAllProducts = async (req, res) => {
         res.status(500).json({ success: false, message: error.message });
     }
 };
+
+export const getAllProductsBySeller = async (req, res) => {
+    try {
+if (!req.user) {
+    return res.status(401).json({ 
+        success: false, 
+        message: "Unauthorized: Access is denied due to invalid credentials." 
+    });
+}
+        const sellerId = req.user.userId;
+        const skip = parseInt(req.query.skip) || 0;
+        const take = Math.min(parseInt(req.query.take) || 10, 50);
+
+        const products = await productService.getProductsBySeller(sellerId,skip, take);
+        res.status(200).json({ success: true, 
+            count:products.length,
+            data: products });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
 
 export const createProduct = async (req, res) => {
     try {

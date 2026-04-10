@@ -9,6 +9,18 @@ export const getAllActiveProducts = async (skip = 0, take = 10) => {
     });
 };
 
+export const getProductsBySeller = async (sellerId,skip = 0, take = 10) => {
+    return await prisma.product.findMany({
+       where: {
+            sellerId: sellerId,
+            isHidden: false 
+        },
+        skip: parseInt(skip),
+        take: parseInt(take),
+        orderBy: { createdAt: 'desc' }
+    });
+};
+
 export const createProduct = async (productData) => {
     return await prisma.product.create({
         data: productData

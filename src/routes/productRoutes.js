@@ -11,5 +11,6 @@ router.get('/', productController.getAllProducts);
 router.post('/', authenticateUser, authorizeRoles('Seller'), productController.createProduct);
 router.patch('/:id', authenticateUser, authorizeRoles('Seller'), productController.updateProduct);
 router.delete('/:id', authenticateUser, authorizeRoles('Seller', 'Admin'), productController.deleteProduct);
+router.get('/my-products', authenticateUser, authorizeRoles('Seller'),productController.getAllProductsBySeller);
 
 export default router;
