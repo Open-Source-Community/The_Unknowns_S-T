@@ -8,7 +8,7 @@ CREATE TYPE "OrderStatus" AS ENUM ('Pending', 'Paid', 'Shipped', 'Cancelled');
 CREATE TYPE "TransactionType" AS ENUM ('Credit', 'Debit');
 
 -- CreateEnum
-CREATE TYPE "TransactionCategory" AS ENUM ('Deposit', 'Purchase', 'Refund', 'Cashback', 'Withdrawal');
+CREATE TYPE "TransactionCategory" AS ENUM ('Deposit', 'Purchase', 'Refund', 'Cashback', 'Withdrawal', 'Transfer');
 
 -- CreateTable
 CREATE TABLE "users" (
@@ -82,6 +82,7 @@ CREATE TABLE "order_items" (
 -- CreateTable
 CREATE TABLE "transactions" (
     "id" SERIAL NOT NULL,
+    "idempotencyKey" TEXT,
     "wallet_id" INTEGER NOT NULL,
     "order_id" INTEGER,
     "amount" DECIMAL(15,2) NOT NULL,
@@ -107,6 +108,9 @@ CREATE TABLE "notifications" (
 
 -- CreateIndex
 CREATE UNIQUE INDEX "users_email_key" ON "users"("email");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "transactions_idempotencyKey_key" ON "transactions"("idempotencyKey");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "transactions_reference_id_key" ON "transactions"("reference_id");
