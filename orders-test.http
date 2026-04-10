@@ -1,0 +1,185 @@
+### ==========================================
+### E2E SCENARIO: Orders, Stock, and Wallets
+### ==========================================
+@baseUrl = http://localhost:3001/api
+
+### ------------------------------------------
+### PHASE 1: DATABASE SEEDING
+### ------------------------------------------
+
+### 1a. Register a Seller
+POST {{baseUrl}}/auth/register
+Content-Type: application/json
+
+{
+  "email": "seller@unknowns.com",
+  "password": "Password123!",
+  "role": "Seller"
+}
+
+### 1b. Register a Buyer
+POST {{baseUrl}}/auth/register
+Content-Type: application/json
+
+{
+  "email": "buyer@unknowns.com",
+  "password": "Password123!",
+  "role": "Buyer"
+}
+
+### 1c. Login Seller (Captures Token Automatically!)
+# @name loginSeller
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "seller@unknowns.com",
+  "password": "Password123!"
+}
+
+### 1d. Login Buyer (Captures Token Automatically!)
+# @name loginBuyer
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "buyer@unknowns.com",
+  "password": "Password123!"
+}
+
+### Assign captured tokens to variables
+@sellerToken = {{loginSeller.response.body.data.token}}
+@buyerToken = {{loginBuyer.response.body.data.token}}
+
+### ------------------------------------------
+### PHASE 2: INVENTORY & WALLET SETUP
+### ------------------------------------------
+
+### 2a. Seller Creates Product 1 (Laptop)
+# @name createProduct1
+POST {{baseUrl}}/products
+Authorization: Bearer {{sellerToken}}
+Content-Type: application/json
+
+{
+  "name": "MacBook Pro",
+  "category": "Electronics",
+  "price": 1000,
+  "stock": 5
+}
+
+### 2b. Seller Creates Product 2 (Mouse)
+# @name createProduct2
+POST {{baseUrl}}/products
+Authorization: Bearer {{sellerToken}}
+Content-Type: application/json
+
+{
+  "name": "Logitech MX Master 3",
+  "category": "Accessories",
+  "price": 100,
+  "stock": 10
+}
+
+### Extract the created product IDs
+@product1 = {{createProduct1.response.body.data.id}}
+@product2 = {{createProduct2.response.body.data.id}}
+
+### 2c. Buyer Deposits Funds ($2,500)
+POST {{baseUrl}}/wallet/deposit
+Authorization: Bearer {{buyerToken}}
+Content-Type: application/json
+Idempotency-Key: e2e-deposit-001
+
+{
+  "amount": 2500,
+  "description": "Initial account funding"
+}
+
+### ------------------------------------------
+### PHASE 3: THE HAPPY PATH (CHECKOUT)
+### ------------------------------------------
+
+### 3a. Buyer Places an Order (1 Laptop, 2 Mice = $1200)
+# @name placeOrder
+POST {{baseUrl}}/orders
+Authorization: Bearer {{buyerToken}}
+Content-Type: application/json
+Idempotency-Key: e2e-order-001
+
+{
+  "items": [
+    { "productId": {{createProduct1.response.body.data.id}}, "quantity": 1 },
+    { "productId": {{createProduct2.response.body.data.id}}, "quantity": 2 }
+  ]
+}
+
+### Extract the created Order ID
+@orderId = {{placeOrder.response.body.data.id}}
+
+### 3b. Verify Wallet Balance (Should be $1300 remaining)
+GET {{baseUrl}}/wallet/balance
+Authorization: Bearer {{buyerToken}}
+
+### 3c. Verify Product Stock (Laptop should be 4, Mouse should be 8)
+GET {{baseUrl}}/products
+
+### 3d. Get Buyer's Order History
+GET {{baseUrl}}/orders
+Authorization: Bearer {{buyerToken}}
+
+
+### ------------------------------------------
+### PHASE 4: REVERSAL & CANCELLATION
+### ------------------------------------------
+
+### 4a. Cancel the Order
+PATCH {{baseUrl}}/orders/{{orderId}}/cancel
+Authorization: Bearer {{buyerToken}}
+Content-Type: application/json
+Idempotency-Key: e2e-cancel-001
+
+### 4b. Verify Wallet Balance Refunded (Should be back to $2500)
+GET {{baseUrl}}/wallet/balance
+Authorization: Bearer {{buyerToken}}
+
+
+### ------------------------------------------
+### PHASE 5: SECURITY & VULNERABILITY CHECKS
+### ------------------------------------------
+
+### 5a. Exploit Attempt: Negative Quantities (Should return 400)
+POST {{baseUrl}}/orders
+Authorization: Bearer {{buyerToken}}
+Content-Type: application/json
+Idempotency-Key: e2e-hack-001
+
+{
+  "items": [
+    { "productId": {{product1}}, "quantity": -5 }
+  ]
+}
+
+### 5b. Exploit Attempt: Insufficient Funds (Try to buy 5 Laptops = $5000)
+POST {{baseUrl}}/orders
+Authorization: Bearer {{buyerToken}}
+Content-Type: application/json
+Idempotency-Key: e2e-hack-002
+
+{
+  "items": [
+    { "productId": {{product1}}, "quantity": 5 }
+  ]
+}
+
+### 5c. Exploit Attempt: Out of Stock Constraint (Try to buy 20 Mice)
+POST {{baseUrl}}/orders
+Authorization: Bearer {{buyerToken}}
+Content-Type: application/json
+Idempotency-Key: e2e-hack-003
+
+{
+  "items": [
+    { "productId": {{product2}}, "quantity": 20 }
+  ]
+}
