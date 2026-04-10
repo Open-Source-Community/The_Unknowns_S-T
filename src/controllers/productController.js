@@ -16,6 +16,13 @@ export const createProduct = async (req, res) => {
     try {
         const { name, price, stock } = req.body;
         
+ if (!req.user) {
+    return res.status(401).json({ 
+        success: false, 
+        message: "Unauthorized: Access is denied due to invalid credentials." 
+    });
+}
+
         const sellerId = req.user.userId;
 
         if (!name || !price || !stock) {
@@ -38,6 +45,12 @@ export const createProduct = async (req, res) => {
 export const updateProduct = async (req, res) => {
     try {
         const { id } = req.params;
+        if (!req.user) {
+    return res.status(401).json({ 
+        success: false, 
+        message: "Unauthorized: Access is denied due to invalid credentials." 
+    });
+}
         const { userId, role } = req.user; // Extracted from our secure JWT
 
         // 1. Fetch the product to check ownership
@@ -82,6 +95,12 @@ export const updateProduct = async (req, res) => {
 export const deleteProduct = async (req, res) => {
     try {
         const { id } = req.params;
+        if (!req.user) {
+    return res.status(401).json({ 
+        success: false, 
+        message: "Unauthorized: Access is denied due to invalid credentials." 
+    });
+}
         const { userId, role } = req.user;
 
         // 1. Fetch the product to check ownership

@@ -1,7 +1,7 @@
 import { jest } from '@jest/globals';
 
 // 1. Mock the Prisma Client BEFORE importing the service using the ESM mock function
-jest.unstable_mockModule('../config/prisma.js', () => ({
+jest.unstable_mockModule('../src/config/prisma.js', () => ({
     default: {
         product: {
             findMany: jest.fn(),
@@ -13,8 +13,8 @@ jest.unstable_mockModule('../config/prisma.js', () => ({
 }));
 
 // 2. Dynamically import Prisma and the service AFTER the mock is registered
-const { default: prisma } = await import('../config/prisma.js');
-const productService = await import('./productService.js');
+const { default: prisma } = await import('../src/config/prisma.js');
+const productService = await import('../src/services/productService.js');
 
 describe('Product Service', () => {
     
