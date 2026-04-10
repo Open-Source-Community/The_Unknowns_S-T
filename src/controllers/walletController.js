@@ -1,4 +1,4 @@
-import { count } from "node:console";
+// import { count } from "node:console";
 import { depositToWallet, withdrawFromWallet, transferFunds, getTransactionHistory, getWalletByUserId , getAllWallets} from "../services/walletService.js";
 
 export const deposit = async (req, res) => {
@@ -8,6 +8,12 @@ export const deposit = async (req, res) => {
 
   try {
     const uId = parseInt(userId);
+     if (!uId ) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid input: user Id is required."
+      });
+    }
     const parsedAmount = parseFloat(amount);
 
     if (!parsedAmount || isNaN(parsedAmount) || parsedAmount <= 0) {
@@ -44,6 +50,12 @@ export const withdraw = async (req, res) => {
   const idempotencyKey = req.headers['idempotency-key'];
   try {
     const uId = parseInt(userId);
+     if (!uId ) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid input: user Id is required."
+      });
+    }
     const parsedAmount = parseFloat(amount);
 
     if (!parsedAmount || isNaN(parsedAmount) || parsedAmount <= 0) {
@@ -81,15 +93,6 @@ export const transfer = async (req, res) => {
   try {
     const sId = parseInt(senderId);
     const rId = parseInt(receiverId);
-
-    const parsedAmount = parseFloat(amount);
-    if (!parsedAmount || isNaN(parsedAmount) || parsedAmount <= 0) {
-      return res.status(400).json({ 
-        success: false, 
-        error: "Invalid amount. The transferred amount must be greater than zero."
-      });
-    }
-
     if (!sId || !rId) {
       return res.status(400).json({
         success: false,
@@ -99,6 +102,15 @@ export const transfer = async (req, res) => {
     if (sId === rId) {
       return res.status(400).json({ success: false, error: "Cannot transfer to yourself" });
     }
+    const parsedAmount = parseFloat(amount);
+    if (!parsedAmount || isNaN(parsedAmount) || parsedAmount <= 0) {
+      return res.status(400).json({ 
+        success: false, 
+        error: "Invalid amount. The transferred amount must be greater than zero."
+      });
+    }
+
+
 
     const result = await transferFunds(sId, rId, parsedAmount, description, idempotencyKey);
 

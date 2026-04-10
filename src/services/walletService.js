@@ -200,7 +200,7 @@ export const getTransactionHistory = async (userId, skip = 0, take = 10) => {
         where: { walletId: uId },
         skip: parseInt(skip),
         take: parseInt(take),
-        // orderBy: { createdAt: 'desc' },
+        orderBy: { createdAt: 'desc' },
     });
 };
 
@@ -226,7 +226,7 @@ export const getAllWallets = async (skip = 0, take = 10) => {
                 select: { email: true }
             }
         },
-        // orderBy: { realBalance: 'desc' } 
+        orderBy: { realBalance: 'desc' } 
     });
 };
 
