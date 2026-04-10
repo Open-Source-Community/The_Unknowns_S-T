@@ -1,6 +1,6 @@
 import { jest } from '@jest/globals';
 import jwt from 'jsonwebtoken';
-import { authenticateUser, authorizeRoles } from './authMiddleware.js';
+import { authenticateUser, authorizeRoles } from '../src/middlewares/authMiddleware.js';
 
 describe('Auth Middleware', () => {
   let req;
