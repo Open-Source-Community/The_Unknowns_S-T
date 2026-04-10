@@ -7,6 +7,7 @@ const mockTxOrderCreate = jest.fn();
 const mockTxWalletUpdate = jest.fn();
 const mockTxTransactionCreate = jest.fn();
 const mockTxProductUpdate = jest.fn();
+const mockTxTransactionFindUnique = jest.fn();
 
 // Mock the Prisma client, specifically handling the complex $transaction callback
 jest.unstable_mockModule('../src/config/prisma.js', () => ({
@@ -20,7 +21,9 @@ jest.unstable_mockModule('../src/config/prisma.js', () => ({
                     update: mockTxWalletUpdate 
                 },
                 order: { create: mockTxOrderCreate },
-                transaction: { create: mockTxTransactionCreate },
+                transaction: { create: mockTxTransactionCreate,
+                    findUnique:mockTxTransactionFindUnique
+                 },
                 product: { update: mockTxProductUpdate }
             });
         })
@@ -34,6 +37,7 @@ describe('Order Service - Critical Business Logic', () => {
 
     beforeEach(() => {
         jest.clearAllMocks();
+          mockTxTransactionFindUnique.mockResolvedValue(null);
     });
 
     it('CRITICAL: Should consolidate duplicate cart items and calculate correct totals', async () => {
@@ -60,7 +64,7 @@ describe('Order Service - Critical Business Logic', () => {
         mockTxOrderCreate.mockResolvedValue({ id: 999 });
 
         // Act
-        await processOrder(buyerId, rawItems);
+        await processOrder(buyerId, rawItems, 'test-key-1');
 
         // Assert
         // 1. It should only look up 1 unique product ID, not 2
@@ -94,7 +98,7 @@ describe('Order Service - Critical Business Logic', () => {
         ]);
 
         // Act & Assert
-        await expect(processOrder(1, rawItems))
+        await expect(processOrder(1, rawItems, 'test-key-2'))
             .rejects
             .toThrow("One or more products are unavailable or do not exist.");
             
@@ -119,11 +123,17 @@ describe('Order Service - Critical Business Logic', () => {
         });
 
         // Act & Assert
-        await expect(processOrder(1, rawItems))
+        await expect(processOrder(1, rawItems, 'test-key-3'))
             .rejects
             .toThrow("Insufficient wallet balance to complete this purchase.");
             
         // Ensure money was NEVER deducted
         expect(mockTxWalletUpdate).not.toHaveBeenCalled();
     });
+
+    it('Should throw error if idempotency key is missing', async () => {
+    await expect(processOrder(1, [{ productId: 1, quantity: 1 }], null))
+        .rejects
+        .toThrow("Invalid input: idempotency key is required.");
+});
 });
