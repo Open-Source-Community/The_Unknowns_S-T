@@ -2,14 +2,26 @@ import { createNewUser, getAllUsers, loginUser, getUserProfile } from '../servic
 
 export const register = async (req, res) => {
   try {
-    const { email, password } = req.body;
+    // 1. Extract exactly what we expect from the body
+    const { email, password, role } = req.body;
     
-    // Input validation
+    // 2. Input validation
     if (!email || !password) {
       return res.status(400).json({ success: false, error: "Email and password are required" });
     }
 
-    const user = await createNewUser(req.body);
+    // 3. SECURITY PATCH: Privilege Escalation Prevention
+    // Only allow 'Seller' or 'Buyer'. If they try to pass 'Admin', default them to 'Buyer'.
+    const safeRole = role === 'Seller' ? 'Seller' : 'Buyer';
+
+    const safeUserData = {
+      email,
+      password,
+      role: safeRole
+    };
+
+    // 4. Pass only the sanitized object to the service
+    const user = await createNewUser(safeUserData);
     res.status(201).json({
       success: true,
       message: "User and Wallet created successfully!",
