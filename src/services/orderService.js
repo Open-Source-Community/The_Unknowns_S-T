@@ -80,8 +80,8 @@ export const processOrder = async (buyerId, rawItems,idempotencyKey) => {
         const order = await tx.order.create({
             data: {
                 buyerId: bId,
-                idempotencyKey: idempotencyKey ,
-                referenceId: `ORD-PAY-${Date.now()}-${crypto.randomBytes(3).toString('hex').toUpperCase()}`,
+                // idempotencyKey: idempotencyKey ,
+                // referenceId: `ORD-PAY-${Date.now()}-${crypto.randomBytes(3).toString('hex').toUpperCase()}`,
                 status: OrderStatus.PAID,
                 totalAmount: totalAmount,
                 items: {
