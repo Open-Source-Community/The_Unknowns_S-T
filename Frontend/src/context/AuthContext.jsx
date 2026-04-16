@@ -19,15 +19,28 @@ export const AuthProvider = ({ children }) => {
     }
 
     try {
-      
-      const response = await API.get(ENDPOINTS.PROFILE);
-      
-      
-      const userData = response.data.data;
-      
+      // Fetch profile and wallet balance in parallel
+      const [profileRes, walletRes] = await Promise.allSettled([
+        API.get(ENDPOINTS.PROFILE),
+        API.get(ENDPOINTS.WALLET),
+      ]);
+
+      const userData = profileRes.status === 'fulfilled' ? profileRes.value.data.data : null;
+
       if (userData) {
-        console.log("Profile Verified:", userData.email, "as", userData.role);
-        setUser(userData); 
+        const storedName = localStorage.getItem(`name_${userData.email}`);
+        const walletData = walletRes.status === 'fulfilled' && walletRes.value.data.success
+          ? { realBalance: walletRes.value.data.balance || '0', promoBalance: walletRes.value.data.promoBalance || '0' }
+          : userData.wallet;
+
+        const userWithName = {
+          ...userData,
+          name: storedName || userData.name,
+          wallet: { ...userData.wallet, ...walletData },
+        };
+
+        console.log("Profile Verified:", userWithName.email, "as", userWithName.role);
+        setUser(userWithName);
       }
     } catch (error) {
       console.error("Auth Verification Failed. Clearing session...");
@@ -43,24 +56,39 @@ export const AuthProvider = ({ children }) => {
   }, []);
   
   const login = (userData) => {
-    
     localStorage.setItem('token', userData.token);
     
+    // Attempt to pull name from storage if it exists for this email
+    const storedName = localStorage.getItem(`name_${userData.user.email}`);
+    const userWithName = { ...userData.user, name: storedName || userData.user.name };
     
-    setUser(userData.user);
-    console.log("User Logged In:", userData.user.email);
+    setUser(userWithName);
+    console.log("User Logged In:", userWithName.email);
   };
 
 
 
 const register = async (formData) => {
   try {
-    const response = await API.post(ENDPOINTS.REGISTER, formData);
+    const { name, ...apiData } = formData;
+    const response = await API.post(ENDPOINTS.REGISTER, apiData);
+    
+    // Store name locally since backend doesn't support it
+    if (name) {
+      localStorage.setItem(`name_${formData.email}`, name);
+    }
+    
     return response.data; 
   } catch (error) {
     
-    const errorMessage = error.response?.data?.message || error.response?.data?.error || 'Initialization Failed';
-    throw errorMessage; 
+    let errorMessage = 'Initialization Failed';
+    if (error.response) {
+      const serverMsg = error.response.data?.message;
+      errorMessage = Array.isArray(serverMsg) ? serverMsg[0] : serverMsg || 'Invalid Data';
+    } else if (error.request) {
+      errorMessage = 'Vault Connection Lost. Server Unreachable.';
+    }
+    throw errorMessage;
   }
 };
   const logout = () => {

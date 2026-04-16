@@ -30,7 +30,7 @@ API.interceptors.response.use(
   
   (error) => {
     
-    if (error.response && error.response.status === 401) {
+    if (error.response && error.response.status === 401 && !window.location.pathname.includes('/login')) {
       console.warn("Session Expired: Redirecting to Auth Node...");
       localStorage.removeItem('token');
       localStorage.removeItem('user');

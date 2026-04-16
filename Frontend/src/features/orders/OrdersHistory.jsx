@@ -12,6 +12,10 @@ const OrdersHistory = () => {
     const [orders, setOrders] = useState([]);
     const [loading, setLoading] = useState(true);
 
+    useEffect(() => {
+        document.title = "Acquisition Log :: Architect X";
+    }, []);
+
     const fetchOrders = async () => {
         try {
             setLoading(true);
@@ -40,7 +44,9 @@ const OrdersHistory = () => {
 
         if (result.isConfirmed) {
             try {
-                const res = await API.delete(`${ENDPOINTS.ORDERS}/${orderId}`);
+                const res = await API.patch(`${ENDPOINTS.ORDERS}/${orderId}/cancel`, {}, {
+                    headers: { 'Idempotency-Key': `cancel-${orderId}-${Date.now()}` }
+                });
                 if (res.data.success) {
                     Swal.fire({ title: 'REFUNDED', icon: 'success', background: '#020617', color: '#fff' });
                     fetchOrders();
@@ -53,8 +59,8 @@ const OrdersHistory = () => {
 
     if (loading) return (
         <div className="flex flex-col items-center justify-center py-40 gap-4">
-            <Loader2 className="animate-spin text-fuchsia-500" size={40} />
-            <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Scanning Secure Logs...</p>
+            <Loader2 className="animate-spin text-purple-500" size={48} />
+            <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest animate-pulse">Scanning Grid Inventory...</p>
         </div>
     );
 
@@ -66,7 +72,7 @@ const OrdersHistory = () => {
                 <div>
                     <span className="text-[9px] font-black text-slate-600 uppercase tracking-[0.4em] ml-1 italic">Node_Acquisition_Ledger</span>
                     <h2 className="text-4xl font-black text-white tracking-tighter uppercase italic leading-none">
-                        Deployment <span className="text-fuchsia-600">Archive.</span>
+                        Deployment <span className="text-purple-500">Archive.</span>
                     </h2>
                 </div>
                 <button onClick={fetchOrders} className="p-3 bg-slate-900 border border-slate-800 rounded-xl text-slate-500 hover:text-white transition-all">
@@ -79,7 +85,9 @@ const OrdersHistory = () => {
                     <div key={order.id} className="bg-slate-900/40 border border-slate-800 rounded-[2.5rem] p-8 backdrop-blur-md relative overflow-hidden group hover:border-slate-700 transition-all">
 
                         {/* Status Background Glow */}
-                        <div className={`absolute top-0 right-0 w-32 h-32 blur-[60px] opacity-10 -z-10 ${order.status === 'Paid' ? 'bg-green-500' : 'bg-red-500'
+                        <div className={`absolute top-0 right-0 w-32 h-32 blur-[60px] opacity-10 -z-10 ${order.status === 'Paid' ? 'bg-green-500' :
+                                order.status === 'Cancelled' ? 'bg-red-500' :
+                                    'bg-blue-500'
                             }`} />
 
                         <div className="flex flex-col lg:flex-row gap-10">
@@ -92,12 +100,18 @@ const OrdersHistory = () => {
                                 </div>
 
                                 <div className="flex gap-4 items-center">
-                                    <div className={`p-2 rounded-lg ${order.status === 'Paid' ? 'bg-green-500/10 text-green-400' : 'bg-red-500/10 text-red-400'}`}>
+                                    <div className={`p-2 rounded-lg ${order.status === 'Paid' ? 'bg-green-500/10 text-green-400' :
+                                            order.status === 'Cancelled' ? 'bg-red-500/10 text-red-500' :
+                                                'bg-blue-500/10 text-blue-400'
+                                        }`}>
                                         <CreditCard size={18} />
                                     </div>
                                     <div>
-                                        <span className="block text-[8px] font-black text-slate-600 uppercase">Status</span>
-                                        <span className="text-[10px] font-black uppercase tracking-widest">{order.status}</span>
+                                        <span className="block text-[8px] font-black text-slate-600 uppercase tracking-widest">Status</span>
+                                        <span className={`text-[10px] font-black uppercase tracking-widest ${order.status === 'Paid' ? 'text-green-500' :
+                                                order.status === 'Cancelled' ? 'text-red-500' :
+                                                    'text-blue-500'
+                                            }`}>{order.status}</span>
                                     </div>
                                 </div>
 
@@ -115,12 +129,12 @@ const OrdersHistory = () => {
                                 {order.items?.map((item, idx) => (
                                     <div key={idx} className="flex justify-between items-center bg-slate-950/40 p-4 rounded-2xl border border-slate-800 group-hover:border-slate-700 transition-colors">
                                         <div className="flex items-center gap-4">
-                                            <div className="w-8 h-8 bg-slate-900 rounded-lg flex items-center justify-center border border-slate-800 text-fuchsia-500">
+                                            <div className="w-8 h-8 bg-slate-900 rounded-lg flex items-center justify-center border border-slate-800 text-purple-500">
                                                 <PackageOpen size={16} />
                                             </div>
                                             <div>
-                                                <span className="text-xs font-black text-white tracking-tight uppercase italic">{item.product?.name || 'Unknown Artifact'}</span>
-                                                <span className="block text-[8px] font-bold text-slate-600 uppercase tracking-widest mt-0.5">Quantity: 0{item.quantity}</span>
+                                                <span className="text-xs font-black text-white tracking-tight uppercase italic">{item.product?.name || 'Standard Artifact'}</span>
+                                                <span className="block text-[8px] font-bold text-slate-500 uppercase tracking-widest mt-0.5">Quantity: 0{item.quantity}</span>
                                             </div>
                                         </div>
                                         <div className="text-right">

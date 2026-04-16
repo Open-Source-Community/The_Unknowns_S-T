@@ -14,6 +14,10 @@ const WalletHub = () => {
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  useEffect(() => {
+    document.title = "Credit Matrix :: Architect X";
+  }, []);
+
   const fetchHistory = async () => {
     try {
       const res = await API.get(ENDPOINTS.WALLET_HISTORY);
@@ -25,7 +29,10 @@ const WalletHub = () => {
     }
   };
 
-  useEffect(() => { fetchHistory(); }, []);
+  useEffect(() => {
+    fetchHistory();
+    updateBalance(); // Sync real balance from server on mount
+  }, []);
 
   
   const executeTransaction = async (type) => {
@@ -92,6 +99,7 @@ const WalletHub = () => {
         <div className="flex gap-3">
           <ActionButton onClick={() => executeTransaction('deposit')} icon={<ArrowDownLeft size={16}/>} label="Deposit" color="text-green-400" />
           <ActionButton onClick={() => executeTransaction('withdraw')} icon={<ArrowUpRight size={16}/>} label="Withdraw" color="text-red-400" />
+          <ActionButton onClick={() => executeTransaction('transfer')} icon={<Send size={16}/>} label="Transfer" color="text-purple-400" />
        </div>
       </div>
 
@@ -126,11 +134,11 @@ const WalletHub = () => {
   {/* 3. Transaction Logs*/}
   <div className="flex-1 bg-slate-900/40 border border-slate-800 rounded-[2.5rem] backdrop-blur-xl overflow-hidden min-h-[400px]">
   
-     <div className="p-6 border-b border-slate-800 flex justify-between items-center bg-slate-950/20">
+     <div className="bg-gradient-to-r from-cyan-500/10 to-purple-500/10 p-6 border-b border-slate-800 flex justify-between items-center">
         <h3 className="text-[10px] font-black text-white uppercase tracking-[0.2em] flex items-center gap-3">
-          <History size={16} className="text-fuchsia-500" /> Transaction_Logs
+          <History size={16} className="text-purple-500" /> Transaction_Logs
         </h3>
-        <button onClick={fetchHistory} className="text-slate-500 hover:text-fuchsia-500 transition-colors">
+        <button onClick={fetchHistory} className="text-slate-500 hover:text-purple-500 transition-colors">
           <RefreshCcw size={14} />
         </button>
      </div>
@@ -147,7 +155,7 @@ const WalletHub = () => {
                 </tr>
               </thead>
               <tbody className="text-[11px] font-medium text-slate-400 divide-y divide-slate-800/50">
-                {history.map((tx) => (
+                {history.length > 0 ? history.map((tx) => (
                   <tr key={tx.id} className="hover:bg-slate-800/30 transition-colors group">
                     <td className="p-4 font-mono text-[10px] text-slate-500">{tx.referenceId}</td>
                     <td className="p-4 uppercase tracking-wider font-bold text-slate-300">{tx.category}</td>
@@ -158,7 +166,14 @@ const WalletHub = () => {
                       {new Date(tx.createdAt).toLocaleDateString()}
                     </td>
                   </tr>
-                ))}
+                )) : (
+                  <tr>
+                    <td colSpan="4" className="text-center py-20 opacity-40">
+                      <p className="text-[10px] font-black uppercase tracking-[0.2em] mb-2">No Transactions Detected</p>
+                      <p className="text-[8px] font-mono uppercase">Ledger is currently dormant</p>
+                    </td>
+                  </tr>
+                )}
               </tbody>
       
         </table>

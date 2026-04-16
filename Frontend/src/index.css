@@ -2,12 +2,12 @@
 
 .custom-scrollbar::-webkit-scrollbar {
   width: 0px;
-  background: transparent; 
+  background: transparent;
 }
 
 
 .custom-scrollbar {
   scrollbar-width: none;
-  
-  -ms-overflow-style: none; 
+
+  -ms-overflow-style: none;
 }

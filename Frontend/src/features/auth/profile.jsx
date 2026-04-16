@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { 
@@ -8,13 +8,17 @@ import {
 import { ExternalLink } from 'lucide-react';
 const Profile = () => {
   const { user } = useAuth();
+  const { updateBalance } = useAuth();
   const navigate = useNavigate();
-const { updateBalance } = useAuth();
+
+  useEffect(() => {
+    updateBalance(); // Sync real balance from server on mount
+  }, []);
 
 
   const joinDate = user?.createdAt 
     ? new Date(user.createdAt).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
-    : 'Unknown_Era';
+    : 'Foundational_Era';
 
 const handleTopUp = async () => {
   const { value: amount } = await Swal.fire({
@@ -32,7 +36,7 @@ const handleTopUp = async () => {
     },
     customClass: {
       popup: 'rounded-[2.5rem] border border-slate-800 backdrop-blur-3xl',
-      input: 'bg-slate-950 border-slate-800 text-fuchsia-400 font-mono text-center rounded-xl'
+      input: 'bg-slate-950 border-slate-800 text-cyan-400 font-mono text-center rounded-xl'
     }
   });
 
@@ -75,7 +79,7 @@ const handleTopUp = async () => {
           Identity_Management
         </span>
         <h2 className="text-4xl font-black text-white tracking-tighter uppercase italic leading-none">
-          Architect <span className="text-fuchsia-600">Profile.</span>
+          Architect <span className="text-cyan-500">Profile.</span>
         </h2>
       </div>
 
@@ -93,7 +97,7 @@ const handleTopUp = async () => {
               </div>
               <div>
                 <h3 className="text-2xl font-black text-white uppercase tracking-tighter mb-1">
-                  {user?.email?.split('@')[0]} <span className="text-slate-600 text-sm">#NODE-{user?.id}</span>
+                  {user?.name || user?.email?.split('@')[0]} <span className="text-slate-600 text-sm">#NODE-{user?.id}</span>
                 </h3>
                 <div className="flex items-center gap-2">
                    <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
@@ -103,10 +107,10 @@ const handleTopUp = async () => {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              <ProfileInfoItem icon={<User size={18}/>} label="Full Identity" value={user?.name || 'Legacy_Node'} highlight />
               <ProfileInfoItem icon={<Mail size={18}/>} label="Email Protocol" value={user?.email} />
-              <ProfileInfoItem icon={<Shield size={18}/>} label="Authorization Role" value={user?.role} highlight />
+              <ProfileInfoItem icon={<Shield size={18}/>} label="Authorization Role" value={user?.role} />
               <ProfileInfoItem icon={<Clock size={18}/>} label="Deployment Date" value={joinDate} />
-              <ProfileInfoItem icon={<Terminal size={18}/>} label="Encryption Level" value="AES-256-GCM" />
             </div>
           </div>
 
@@ -125,14 +129,14 @@ const handleTopUp = async () => {
       <div 
         onClick={() => navigate('/wallet')}
         
-        className="bg-gradient-to-br from-fuchsia-600/20 to-purple-600/5 border border-fuchsia-500/20 rounded-[2.5rem] p-10 backdrop-blur-xl cursor-pointer group hover:border-fuchsia-500/50 transition-all"
+        className="bg-gradient-to-br from-cyan-600/20 to-blue-600/5 border border-cyan-500/20 rounded-[2.5rem] p-10 backdrop-blur-xl cursor-pointer group hover:border-cyan-500/50 transition-all"
       >
         <div className="flex justify-between items-start mb-6">
-           <WalletIcon className="text-fuchsia-500 group-hover:scale-110 transition-transform" size={32} />
-           <ExternalLink size={16} className="text-slate-600 group-hover:text-fuchsia-400" />
+           <WalletIcon className="text-cyan-500 group-hover:scale-110 transition-transform" size={32} />
+           <ExternalLink size={16} className="text-slate-600 group-hover:text-cyan-400" />
         </div>
         
-        <h4 className="text-[10px] font-black text-fuchsia-400 uppercase tracking-[0.3em] mb-2">Vault Balance</h4>
+        <h4 className="text-[10px] font-black text-cyan-400 uppercase tracking-[0.3em] mb-2">Foundry Balance</h4>
         <div className="flex items-baseline gap-2">
           <span className="text-5xl font-black text-white tracking-tighter">
             ${parseFloat(user?.wallet?.realBalance || 0).toFixed(2)}
@@ -156,7 +160,7 @@ const ProfileInfoItem = ({ icon, label, value, highlight }) => (
       {icon}
       <span className="text-[9px] font-black uppercase tracking-widest">{label}</span>
     </div>
-    <div className={`text-sm font-bold tracking-tight ${highlight ? 'text-fuchsia-400' : 'text-slate-300'}`}>
+    <div className={`text-sm font-bold tracking-tight ${highlight ? 'text-cyan-400' : 'text-slate-300'}`}>
       {value || 'Not_Set'}
     </div>
   </div>
