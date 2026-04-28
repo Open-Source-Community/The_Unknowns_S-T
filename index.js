@@ -5,6 +5,10 @@ import authRoutes from './src/routes/authRoutes.js';
 import walletRoutes from './src/routes/walletRoutes.js';
 import productRoutes from './src/routes/productRoutes.js';
 import orderRoutes from './src/routes/orderRoutes.js';
+import swaggerUi from 'swagger-ui-express';
+import { createRequire } from 'module';
+const require = createRequire(import.meta.url);
+const swaggerFile = require('./swagger-output.json');
 
 dotenv.config();
 
@@ -15,6 +19,8 @@ app.use(cors({
   credentials: true
 }));
 app.use(express.json());
+
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerFile));
 
 app.use('/api/auth', authRoutes);
 app.use('/api/wallet', walletRoutes);
