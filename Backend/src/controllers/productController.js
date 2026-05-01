@@ -37,7 +37,7 @@ if (!req.user) {
 
 export const createProduct = async (req, res) => {
     try {
-        const { name, price, stock } = req.body;
+        const { name, price, stock, category } = req.body;
         
         if (!req.user) {
             return res.status(401).json({ 
@@ -56,6 +56,7 @@ export const createProduct = async (req, res) => {
             name,
             price: parseFloat(price),
             stock: parseInt(stock || 0),
+            category: category || "General",
             sellerId: sellerId
         });
 

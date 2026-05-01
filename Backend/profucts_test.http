@@ -42,10 +42,3 @@ Authorization: Bearer YOUR_TOKEN_HERE
 GET http://localhost:3001/api/products/my-products
 Content-Type: application/json
 Authorization: Bearer YOUR_TOKEN_HERE
-
-
-
-
-
-
-
