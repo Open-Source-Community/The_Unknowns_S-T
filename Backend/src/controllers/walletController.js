@@ -1,14 +1,14 @@
 // import { count } from "node:console";
-import { depositToWallet, withdrawFromWallet, transferFunds, getTransactionHistory, getWalletByUserId , getAllWallets} from "../services/walletService.js";
+import { depositToWallet, withdrawFromWallet, transferFunds, getTransactionHistory, getWalletByUserId, getAllWallets } from "../services/walletService.js";
 
 export const deposit = async (req, res) => {
-  const { userId }=req.user;
+  const { userId } = req.user;
   const { amount, description } = req.body;
   const idempotencyKey = req.headers['idempotency-key'];
 
   try {
     const uId = parseInt(userId);
-     if (!uId ) {
+    if (!uId) {
       return res.status(400).json({
         success: false,
         error: "Invalid input: user Id is required."
@@ -17,10 +17,10 @@ export const deposit = async (req, res) => {
     const parsedAmount = parseFloat(amount);
 
     if (!parsedAmount || isNaN(parsedAmount) || parsedAmount <= 0) {
-        return res.status(400).json({ 
-            success: false, 
-            error: "Invalid amount. Please provide a positive number." 
-        });
+      return res.status(400).json({
+        success: false,
+        error: "Invalid amount. Please provide a positive number."
+      });
     }
 
     const result = await depositToWallet(uId, parsedAmount, description, idempotencyKey);
@@ -37,20 +37,20 @@ export const deposit = async (req, res) => {
     });
 
   } catch (error) {
-    return res.status(error.statusCode || 500).json({ 
-        success: false, 
-        error: error.message 
+    return res.status(error.statusCode || 500).json({
+      success: false,
+      error: error.message
     });
-}
+  }
 };
 
 export const withdraw = async (req, res) => {
-  const {userId}=req.user;
+  const { userId } = req.user;
   const { amount, description } = req.body;
   const idempotencyKey = req.headers['idempotency-key'];
   try {
     const uId = parseInt(userId);
-     if (!uId ) {
+    if (!uId) {
       return res.status(400).json({
         success: false,
         error: "Invalid input: user Id is required."
@@ -59,10 +59,10 @@ export const withdraw = async (req, res) => {
     const parsedAmount = parseFloat(amount);
 
     if (!parsedAmount || isNaN(parsedAmount) || parsedAmount <= 0) {
-        return res.status(400).json({ 
-            success: false, 
-            error: "Invalid amount. Please provide a positive number." 
-        });
+      return res.status(400).json({
+        success: false,
+        error: "Invalid amount. Please provide a positive number."
+      });
     }
 
     const result = await withdrawFromWallet(uId, parsedAmount, description, idempotencyKey);
@@ -78,15 +78,15 @@ export const withdraw = async (req, res) => {
       alreadyProcessed: result.alreadyProcessed || false
     });
   } catch (error) {
-    return res.status(error.statusCode || 500).json({ 
-        success: false, 
-        error: error.message 
+    return res.status(error.statusCode || 500).json({
+      success: false,
+      error: error.message
     });
-}
+  }
 };
 
 export const transfer = async (req, res) => {
-  const {userId:senderId} = req.user;
+  const { userId: senderId } = req.user;
   const { receiverId, amount, description } = req.body;
   const idempotencyKey = req.headers['idempotency-key'];
 
@@ -104,8 +104,8 @@ export const transfer = async (req, res) => {
     }
     const parsedAmount = parseFloat(amount);
     if (!parsedAmount || isNaN(parsedAmount) || parsedAmount <= 0) {
-      return res.status(400).json({ 
-        success: false, 
+      return res.status(400).json({
+        success: false,
         error: "Invalid amount. The transferred amount must be greater than zero."
       });
     }
@@ -121,11 +121,11 @@ export const transfer = async (req, res) => {
       alreadyProcessed: result.alreadyProcessed || false
     });
   } catch (error) {
-    return res.status(error.statusCode || 500).json({ 
-        success: false, 
-        error: error.message 
+    return res.status(error.statusCode || 500).json({
+      success: false,
+      error: error.message
     });
-}
+  }
 };
 
 export const getHistory = async (req, res) => {
@@ -134,29 +134,41 @@ export const getHistory = async (req, res) => {
   try {
     const skip = parseInt(req.query.skip) || 0;
     const take = Math.min(parseInt(req.query.take) || 10, 50);
+    let type = req.query.type;
+    if (type) {
+
+      type = type.charAt(0).toUpperCase() + type.slice(1).toLowerCase();
+    }
     const uId = parseInt(userId);
-     if (!uId ) {
+    if (!uId) {
       return res.status(400).json({
         success: false,
         error: "Invalid input: user Id is required."
       });
     }
-    const history = await getTransactionHistory(uId, skip, take);
+
+    const filters = {
+      startDate: req.query.startDate,
+      endDate: req.query.endDate,
+      type: type,
+    };
+
+    const history = await getTransactionHistory(uId, skip, take, filters);
     res.status(200).json({
       success: true,
       count: history.length,
       data: history
     });
   } catch (error) {
-    return res.status(error.statusCode || 500).json({ 
-        success: false, 
-        error: error.message 
+    return res.status(error.statusCode || 500).json({
+      success: false,
+      error: error.message
     });
-}
+  }
 };
 
 export const getBalance = async (req, res) => {
-    const { userId } = req.user;
+  const { userId } = req.user;
   try {
     const uId = parseInt(userId);
     if (!uId) {
@@ -178,18 +190,27 @@ export const getBalance = async (req, res) => {
       recentTransactions: wallet.transactions
     });
   } catch (error) {
-    return res.status(error.statusCode || 500).json({ 
-        success: false, 
-        error: error.message 
+    return res.status(error.statusCode || 500).json({
+      success: false,
+      error: error.message
     });
-}
+  }
 };
 
 export const getAllWalletsForAdmin = async (req, res) => {
   try {
     const skip = parseInt(req.query.skip) || 0;
     const take = Math.min(parseInt(req.query.take) || 10, 50);
-    const wallets = await getAllWallets(skip, take);
+
+    const minB = req.query.minBalance;
+    const maxB = req.query.maxBalance;
+
+    const filters = {
+      minBalance: (minB !== undefined && minB !== '') ? parseFloat(minB) : undefined,
+      maxBalance: (maxB !== undefined && maxB !== '') ? parseFloat(maxB) : undefined,
+    };
+
+    const wallets = await getAllWallets(skip, take, filters);
 
     if (!wallets || wallets.length === 0) {
       return res.status(404).json({ success: false, error: "No Wallets found" });
@@ -197,13 +218,13 @@ export const getAllWalletsForAdmin = async (req, res) => {
 
     res.status(200).json({
       success: true,
-      count:wallets.length,
+      count: wallets.length,
       data: wallets
     });
   } catch (error) {
-    return res.status(error.statusCode || 500).json({ 
-        success: false, 
-        error: error.message 
+    return res.status(error.statusCode || 500).json({
+      success: false,
+      error: error.message
     });
   }
 };

@@ -115,3 +115,29 @@ Authorization: Bearer YOUR_TOKEN_HERE
 
 GET http://localhost:3001/api/wallet/admin/all-wallets
 Authorization: Bearer YOUR_TOKEN_HERE
+
+### Get All Wallets for Admin with Balance Filters
+GET http://localhost:3001/api/wallet/admin/all-wallets?skip=0&take=20&minBalance=500&maxBalance=5000
+Authorization: Bearer YOUR_TOKEN_HERE
+
+
+### Get Transaction History with Filters
+GET http://localhost:3001/api/wallet/history?skip=0&take=10&type=Credit&startDate=2026-01-01&endDate=2026-05-01
+Authorization: Bearer YOUR_TOKEN_HERE
+
+
+
+### Test Case: minBalance > maxBalance (Should Fail)
+GET http://localhost:3001/api/wallet/admin/all-wallets?minBalance=1000&maxBalance=500
+Authorization: Bearer YOUR_TOKEN_HERE
+
+### Test Case: Invalid Date Format (Should Fail)
+GET http://localhost:3001/api/wallet/history?startDate=not-a-date
+Authorization: Bearer YOUR_TOKEN_HERE
+
+### Test Case: Negative Pagination (Should Fail)
+GET http://localhost:3001/api/wallet/history?skip=-5
+Authorization: Bearer YOUR_TOKEN_HERE
+
+
+
