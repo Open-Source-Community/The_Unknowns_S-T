@@ -184,7 +184,7 @@ describe('Wallet Service Unit Tests (FR-17)', () => {
 
 // ─── validateIdempotency, validateWalletFilters, validateTransactionFilters  Middlewares ───────────────────────────────────────────
 
-const { validateIdempotency, validateWalletFilters, validateTransactionFilters } = await import('../src/middlewares/walletMiddleware.js');
+const { validateIdempotency, validateWalletFilters, validateTransactionFilters, validatePagination } = await import('../src/middlewares/walletMiddleware.js');
 
 const mockRes = () => {
   const res = {};
@@ -324,6 +324,64 @@ describe('Wallet & Transaction Filter Middlewares', () => {
     next = jest.fn();
   });
 
+  describe('validatePagination', () => {
+    test('Should reject if skip is negative', () => {
+      const req = { query: { skip: '-1', take: '10' } };
+      const res = mockRes();
+
+      validatePagination(req, res, next);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+        error: expect.stringContaining('Invalid skip value')
+      }));
+    });
+
+    test('Should reject if take is negative', () => {
+      const req = { query: { skip: '0', take: '-5' } };
+      const res = mockRes();
+
+      validatePagination(req, res, next);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+        error: expect.stringContaining('Invalid take value')
+      }));
+    });
+
+    test('Should reject if take exceeds 100', () => {
+      const req = { query: { take: '150' } };
+      const res = mockRes();
+
+      validatePagination(req, res, next);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+        error: expect.stringContaining('Invalid take value')
+      }));
+    });
+
+    test('Should pass with valid skip and take', () => {
+      const req = { query: { skip: '5', take: '20' } };
+      const res = mockRes();
+
+      validatePagination(req, res, next);
+
+      expect(next).toHaveBeenCalled();
+      expect(req.query.skip).toBe(5);
+      expect(req.query.take).toBe(20);
+    });
+
+    test('Should pass when skip and take are empty strings or omitted', () => {
+      const req = { query: { skip: '', take: '' } };
+      const res = mockRes();
+
+      validatePagination(req, res, next);
+
+      expect(next).toHaveBeenCalled();
+    });
+  });
+
   describe('validateWalletFilters', () => {
     test('Should reject if minBalance > maxBalance', () => {
       const req = { query: { minBalance: '500', maxBalance: '100' } };
@@ -337,20 +395,29 @@ describe('Wallet & Transaction Filter Middlewares', () => {
       }));
     });
 
-    test('Should reject if skip or take are negative', () => {
-      const req = { query: { skip: '-1', take: '10' } };
+    test('Should reject if minBalance is negative', () => {
+      const req = { query: { minBalance: '-10' } };
       const res = mockRes();
 
       validateWalletFilters(req, res, next);
 
       expect(res.status).toHaveBeenCalledWith(400);
       expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
-        error: expect.stringContaining('Invalid skip value')
+        error: expect.stringContaining('Invalid minBalance value')
       }));
     });
 
     test('Should pass with valid optional filters', () => {
-      const req = { query: { minBalance: '10', skip: '5' } };
+      const req = { query: { minBalance: '10' } };
+      const res = mockRes();
+
+      validateWalletFilters(req, res, next);
+
+      expect(next).toHaveBeenCalled();
+    });
+
+    test('Should pass when minBalance and maxBalance are empty strings', () => {
+      const req = { query: { minBalance: '', maxBalance: '' } };
       const res = mockRes();
 
       validateWalletFilters(req, res, next);

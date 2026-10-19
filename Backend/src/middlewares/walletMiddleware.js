@@ -1,4 +1,5 @@
 import { TransactionType } from "../data/constants.js";
+export { validatePagination } from "./paginationMiddleware.js";
 
 export const validateIdempotency = (req, res, next) => {
   const idempotencyKey = req.headers['idempotency-key'];
@@ -14,54 +15,28 @@ export const validateIdempotency = (req, res, next) => {
 export const validateWalletFilters = (req, res, next) => {
   const minB = req.query.minBalance;
   const maxB = req.query.maxBalance;
-  const skip = req.query.skip;
-  const take = req.query.take;
 
+  const min = (minB !== undefined && minB !== '') ? parseFloat(minB) : undefined;
+  const max = (maxB !== undefined && maxB !== '') ? parseFloat(maxB) : undefined;
 
-
-if (skip !== undefined) {
-  const skipInt = parseInt(skip);
-  if (isNaN(skipInt) || skipInt < 0) {
-    return res.status(400).json({
-      success: false,
-      error: "Invalid skip value. Pagination starting index cannot be negative."
-    });
-  }
-}
-
-
-  // 2. Validate take
-  if (take) {
-    const takeInt = parseInt(take);
-    if (isNaN(takeInt) || takeInt < 0 || takeInt > 100) {
-      return res.status(400).json({
-        success: false,
-        error: "Invalid take value. Must be between 0 and 100."
-      });
-    }
-    req.query.take = takeInt;
-  }
-
-  // Validate minBalance
-  if (minB !== undefined && minB !== '' && (isNaN(parseFloat(minB)) || parseFloat(minB) < 0)) {
+  // Validate minBalance 
+  if (min !== undefined && (isNaN(min) || min < 0)) {
     return res.status(400).json({
       success: false,
       error: "Invalid minBalance value. Must be a non-negative number."
     });
   }
+
   // Validate maxBalance
-  if (maxB !== undefined && maxB !== '' && (isNaN(parseFloat(maxB)) || parseFloat(maxB) < 0)) {
+  if (max !== undefined && (isNaN(max) || max < 0)) {
     return res.status(400).json({
       success: false,
       error: "Invalid maxBalance value. Must be a non-negative number."
     });
   }
-  // Validate minBalance <= maxBalance
-  if (
-    minB !== undefined && minB !== '' &&
-    maxB !== undefined && maxB !== '' &&
-    parseFloat(minB) > parseFloat(maxB)
-  ) {
+
+  // Validate range
+  if (min !== undefined && max !== undefined && min > max) {
     return res.status(400).json({
       success: false,
       error: "minBalance cannot be greater than maxBalance."
@@ -70,33 +45,8 @@ if (skip !== undefined) {
   next();
 };
 
-
 export const validateTransactionFilters = (req, res, next) => {
-  const { skip,take,startDate, endDate, type } = req.query;
-
-if (skip !== undefined) {
-  const skipInt = parseInt(skip);
-  if (isNaN(skipInt) || skipInt < 0) {
-    return res.status(400).json({
-      success: false,
-      error: "Invalid skip value. Pagination starting index cannot be negative."
-    });
-  }
-}
-
-
-  // 2. Validate take
-  if (take) {
-    const takeInt = parseInt(take);
-    if (isNaN(takeInt) || takeInt < 0 || takeInt > 100) {
-      return res.status(400).json({
-        success: false,
-        error: "Invalid take value. Must be between 0 and 100."
-      });
-    }
-    req.query.take = takeInt;
-  }
-
+  const { startDate, endDate, type } = req.query;
 
   if (startDate) {
     const start = new Date(startDate);
@@ -131,7 +81,7 @@ if (skip !== undefined) {
   if (type) {
     const formattedType = type.charAt(0).toUpperCase() + type.slice(1).toLowerCase();
     const validTypes = Object.values(TransactionType);
-    
+
     if (!validTypes.includes(formattedType)) {
       return res.status(400).json({
         success: false,
