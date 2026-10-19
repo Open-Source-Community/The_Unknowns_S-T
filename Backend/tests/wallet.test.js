@@ -6,6 +6,7 @@ const mockFindUniqueWallet = jest.fn();
 const mockUpdateWallet = jest.fn();
 const mockFindUniqueUser = jest.fn();
 const mockFindTransactions = jest.fn();
+const mockFindManyWallets = jest.fn();
 
 // 1. Mock the Prisma module securely
 jest.unstable_mockModule('../src/config/prisma.js', () => ({
@@ -13,11 +14,11 @@ jest.unstable_mockModule('../src/config/prisma.js', () => ({
     $transaction: jest.fn(async (callback) => {
       return await callback({
         transaction: { findUnique: mockFindUniqueTx, create: mockCreateTx },
-        wallet: { findUnique: mockFindUniqueWallet, update: mockUpdateWallet },
+        wallet: { findUnique: mockFindUniqueWallet, update: mockUpdateWallet, findMany: mockFindManyWallets },
       });
     }),
     user: { findUnique: mockFindUniqueUser },
-    wallet: { findUnique: mockFindUniqueWallet, update: mockUpdateWallet },
+    wallet: { findUnique: mockFindUniqueWallet, update: mockUpdateWallet, findMany: mockFindManyWallets },
     transaction: { findUnique: mockFindUniqueTx, findMany: mockFindTransactions }
   },
 }));
@@ -30,8 +31,6 @@ const { transferFunds, depositToWallet, withdrawFromWallet, getTransactionHistor
 describe('Wallet Service Unit Tests (FR-17)', () => {
 
   beforeEach(() => {
-    // CRITICAL FIX: Explicitly reset the inner mocks to clear return values from previous tests,
-    // while leaving the outer $transaction wrapper completely intact!
     mockFindUniqueTx.mockReset();
     mockCreateTx.mockReset();
     mockFindUniqueWallet.mockReset();
@@ -84,7 +83,7 @@ describe('Wallet Service Unit Tests (FR-17)', () => {
       idempotencyKey: "key-1",
       wallet: { userId: 1, realBalance: 500 }
     });
-    
+
     const result = await transferFunds(1, 2, 100, "Transfer", "key-1");
 
     expect(result.alreadyProcessed).toBe(true);
@@ -110,7 +109,7 @@ describe('Wallet Service Unit Tests (FR-17)', () => {
     await expect(depositToWallet(1, 0, "Fake", "key"))
       .rejects.toThrow('User does not exist in the system.');
   });
-  
+
   test('Should fall through to User Check for zero or negative amount for withdraw', async () => {
     mockFindUniqueUser.mockResolvedValueOnce(null);
     await expect(withdrawFromWallet(1, 0, "Fake", "key"))
@@ -119,7 +118,7 @@ describe('Wallet Service Unit Tests (FR-17)', () => {
 
   test('Should fall through to Wallet Check if transfer amount is invalid', async () => {
     mockFindUniqueTx.mockResolvedValueOnce(null);
-    mockFindUniqueWallet.mockResolvedValueOnce(null); 
+    mockFindUniqueWallet.mockResolvedValueOnce(null);
 
     await expect(transferFunds(1, 2, -100, "Gift", "key-1"))
       .rejects.toThrow('Sender wallet not found');
@@ -142,7 +141,7 @@ describe('Wallet Service Unit Tests (FR-17)', () => {
     mockFindUniqueUser.mockResolvedValueOnce({ id: 1, wallet: { userId: 1 } });
     mockFindUniqueTx.mockResolvedValueOnce(null);
     mockFindUniqueWallet.mockResolvedValueOnce({ userId: 1, realBalance: 200 });
-    
+
     await expect(withdrawFromWallet(1, 500, "try", "key-1"))
       .rejects.toThrow('Insufficient balance');
   });
@@ -158,17 +157,17 @@ describe('Wallet Service Unit Tests (FR-17)', () => {
   });
 
   test('Should successfully withdraw and return updated wallet', async () => {
-      mockFindUniqueUser.mockResolvedValueOnce({ id: 1, wallet: { userId: 1 } });
-      mockFindUniqueTx.mockResolvedValueOnce(null);
-      mockFindUniqueWallet.mockResolvedValueOnce({ userId: 1, realBalance: 200 });
-      mockUpdateWallet.mockResolvedValueOnce({ userId: 1, realBalance: 100 });
-      mockCreateTx.mockResolvedValue({});
+    mockFindUniqueUser.mockResolvedValueOnce({ id: 1, wallet: { userId: 1 } });
+    mockFindUniqueTx.mockResolvedValueOnce(null);
+    mockFindUniqueWallet.mockResolvedValueOnce({ userId: 1, realBalance: 200 });
+    mockUpdateWallet.mockResolvedValueOnce({ userId: 1, realBalance: 100 });
+    mockCreateTx.mockResolvedValue({});
 
-      const result = await withdrawFromWallet(1, 100, "try", "key-1");
-      expect(result.success).toBe(true);
-      expect(result.wallet.realBalance).toBe(100);
+    const result = await withdrawFromWallet(1, 100, "try", "key-1");
+    expect(result.success).toBe(true);
+    expect(result.wallet.realBalance).toBe(100);
   });
-  
+
   test('Should get All transaction history for the user', async () => {
     mockFindTransactions.mockResolvedValueOnce([
       { id: 1, amount: 100, type: 'CREDIT' },
@@ -183,14 +182,14 @@ describe('Wallet Service Unit Tests (FR-17)', () => {
   });
 });
 
-// ─── validateIdempotency Middleware ───────────────────────────────────────────
+// ─── validateIdempotency, validateWalletFilters, validateTransactionFilters  Middlewares ───────────────────────────────────────────
 
-const { validateIdempotency } = await import('../src/middlewares/walletMiddleware.js');
+const { validateIdempotency, validateWalletFilters, validateTransactionFilters, validatePagination } = await import('../src/middlewares/walletMiddleware.js');
 
 const mockRes = () => {
   const res = {};
   res.status = jest.fn().mockReturnValue(res);
-  res.json   = jest.fn().mockReturnValue(res);
+  res.json = jest.fn().mockReturnValue(res);
   return res;
 };
 
@@ -259,3 +258,207 @@ describe('validateIdempotency middleware', () => {
     );
   });
 });
+
+
+// ─── Traking New Wallet Service Unit Tests (Filters & Pagination) ────────
+
+describe('Wallet Service Pagination & Filtration Tests', () => {
+
+  beforeEach(() => {
+    mockFindTransactions.mockReset();
+    mockFindUniqueWallet.mockReset();
+    mockFindTransactions.mockReset();
+  });
+
+  test('getTransactionHistory should apply type and date filters correctly', async () => {
+    const filters = {
+      type: 'Credit',
+      startDate: '2026-01-01',
+      endDate: '2026-01-31'
+    };
+
+    mockFindTransactions.mockResolvedValueOnce([]);
+
+    await getTransactionHistory(1, 0, 10, filters);
+
+    expect(mockFindTransactions).toHaveBeenCalledWith(expect.objectContaining({
+      where: {
+        walletId: 1,
+        type: 'Credit',
+        createdAt: {
+          gte: expect.any(Date),
+          lte: expect.any(Date)
+        }
+      }
+    }));
+  });
+
+  test('getAllWallets should apply balance filters and include user email (N+1 Fix)', async () => {
+    const filters = { minBalance: 100, maxBalance: 500 };
+    const mockWallets = [{ id: 1, realBalance: 200, user: { email: 'test@test.com' } }];
+
+    mockFindManyWallets.mockReset();
+    mockFindManyWallets.mockResolvedValueOnce(mockWallets);
+
+    const { getAllWallets } = await import('../src/services/walletService.js');
+
+    await getAllWallets(0, 10, filters);
+
+    expect(mockFindManyWallets).toHaveBeenCalledWith(expect.objectContaining({
+      where: {
+        realBalance: { gte: 100, lte: 500 }
+      },
+      include: {
+        user: { select: { email: true } }
+      }
+    }));
+  });
+});
+
+// ─── New Middleware Validation Tests (Wallet & Transaction Filters) ──────
+
+describe('Wallet & Transaction Filter Middlewares', () => {
+  let next;
+
+  beforeEach(() => {
+    next = jest.fn();
+  });
+
+  describe('validatePagination', () => {
+    test('Should reject if skip is negative', () => {
+      const req = { query: { skip: '-1', take: '10' } };
+      const res = mockRes();
+
+      validatePagination(req, res, next);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+        error: expect.stringContaining('Invalid skip value')
+      }));
+    });
+
+    test('Should reject if take is negative', () => {
+      const req = { query: { skip: '0', take: '-5' } };
+      const res = mockRes();
+
+      validatePagination(req, res, next);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+        error: expect.stringContaining('Invalid take value')
+      }));
+    });
+
+    test('Should reject if take exceeds 100', () => {
+      const req = { query: { take: '150' } };
+      const res = mockRes();
+
+      validatePagination(req, res, next);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+        error: expect.stringContaining('Invalid take value')
+      }));
+    });
+
+    test('Should pass with valid skip and take', () => {
+      const req = { query: { skip: '5', take: '20' } };
+      const res = mockRes();
+
+      validatePagination(req, res, next);
+
+      expect(next).toHaveBeenCalled();
+      expect(req.query.skip).toBe(5);
+      expect(req.query.take).toBe(20);
+    });
+
+    test('Should pass when skip and take are empty strings or omitted', () => {
+      const req = { query: { skip: '', take: '' } };
+      const res = mockRes();
+
+      validatePagination(req, res, next);
+
+      expect(next).toHaveBeenCalled();
+    });
+  });
+
+  describe('validateWalletFilters', () => {
+    test('Should reject if minBalance > maxBalance', () => {
+      const req = { query: { minBalance: '500', maxBalance: '100' } };
+      const res = mockRes();
+
+      validateWalletFilters(req, res, next);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+        error: "minBalance cannot be greater than maxBalance."
+      }));
+    });
+
+    test('Should reject if minBalance is negative', () => {
+      const req = { query: { minBalance: '-10' } };
+      const res = mockRes();
+
+      validateWalletFilters(req, res, next);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+        error: expect.stringContaining('Invalid minBalance value')
+      }));
+    });
+
+    test('Should pass with valid optional filters', () => {
+      const req = { query: { minBalance: '10' } };
+      const res = mockRes();
+
+      validateWalletFilters(req, res, next);
+
+      expect(next).toHaveBeenCalled();
+    });
+
+    test('Should pass when minBalance and maxBalance are empty strings', () => {
+      const req = { query: { minBalance: '', maxBalance: '' } };
+      const res = mockRes();
+
+      validateWalletFilters(req, res, next);
+
+      expect(next).toHaveBeenCalled();
+    });
+  });
+
+  describe('validateTransactionFilters', () => {
+    test('Should reject invalid transaction type', () => {
+      const req = { query: { type: 'INVALID_ENUM' } };
+      const res = mockRes();
+
+      validateTransactionFilters(req, res, next);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+        error: expect.stringContaining('Allowed values')
+      }));
+    });
+
+    test('Should reject if startDate is after endDate', () => {
+      const req = { query: { startDate: '2026-05-01', endDate: '2026-01-01' } };
+      const res = mockRes();
+
+      validateTransactionFilters(req, res, next);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+        error: "startDate must be before endDate."
+      }));
+    });
+
+    test('Should pass with valid date format', () => {
+      const req = { query: { startDate: '2026-01-01' } };
+      const res = mockRes();
+
+      validateTransactionFilters(req, res, next);
+
+      expect(next).toHaveBeenCalled();
+    });
+  });
+});
+

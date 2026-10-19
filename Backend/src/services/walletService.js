@@ -19,16 +19,16 @@ export const depositToWallet = async (userId, amount, description, idempotencyKe
     });
 
     if (!userExists) {
-        const error =new Error("User does not exist in the system.");
+        const error = new Error("User does not exist in the system.");
         error.statusCode = 404;
-        throw  error;
+        throw error;
     }
 
 
     if (!userExists.wallet) {
-        const error= new Error("User found, but no wallet is associated with this account.");
+        const error = new Error("User found, but no wallet is associated with this account.");
         error.statusCode = 404;
-        throw  error;
+        throw error;
     }
     return await prisma.$transaction(async (tx) => {
         const existing = await checkIdempotency(tx, idempotencyKey);
@@ -68,14 +68,14 @@ export const withdrawFromWallet = async (userId, amount, description, idempotenc
     });
 
     if (!userExists) {
-        const error =  new Error("User does not exist in the system.");
+        const error = new Error("User does not exist in the system.");
         error.statusCode = 404;
-        throw  error;
+        throw error;
     }
     if (!userExists.wallet) {
-        const error =  new Error("User found, but no wallet is associated with this account.");
+        const error = new Error("User found, but no wallet is associated with this account.");
         error.statusCode = 404;
-        throw  error;
+        throw error;
     }
     return await prisma.$transaction(async (tx) => {
         const existing = await checkIdempotency(tx, idempotencyKey);
@@ -92,13 +92,13 @@ export const withdrawFromWallet = async (userId, amount, description, idempotenc
         if (!wallet) {
             const error = new Error("Wallet not found for this user");
             error.statusCode = 404;
-            throw  error;
+            throw error;
         }
         // Check 2: Balance
         if (parseFloat(wallet.realBalance) < amount) {
-            const error =  new Error("Insufficient balance: You don't have enough funds");
+            const error = new Error("Insufficient balance: You don't have enough funds");
             error.statusCode = 400;
-            throw  error;
+            throw error;
         }
 
         const updatedWallet = await tx.wallet.update({
@@ -138,22 +138,22 @@ export const transferFunds = async (senderId, receiverId, amount, description, i
         }
 
         const senderWallet = await tx.wallet.findUnique({ where: { userId: sId } });
-        if (!senderWallet)  {
-            const error =  new Error("Sender wallet not found");
+        if (!senderWallet) {
+            const error = new Error("Sender wallet not found");
             error.statusCode = 404;
-            throw  error;
+            throw error;
         }
         if (parseFloat(senderWallet.realBalance) < amount) {
-            const error =  new Error("Insufficient balance");
+            const error = new Error("Insufficient balance");
             error.statusCode = 400;
-            throw  error;
+            throw error;
         }
 
         const receiverWallet = await tx.wallet.findUnique({ where: { userId: rId } });
-        if (!receiverWallet)  {
-            const error =  new Error("Receiver wallet not found");
+        if (!receiverWallet) {
+            const error = new Error("Receiver wallet not found");
             error.statusCode = 404;
-            throw  error;
+            throw error;
         }
         const updatedSenderWallet = await tx.wallet.update({
             where: { userId: sId },
@@ -194,10 +194,20 @@ export const transferFunds = async (senderId, receiverId, amount, description, i
     });
 };
 
-export const getTransactionHistory = async (userId, skip = 0, take = 10) => {
+export const getTransactionHistory = async (userId, skip = 0, take = 10, filters = {}) => {
+    const { type, startDate, endDate } = filters;
+
     const uId = parseInt(userId);
     return await prisma.transaction.findMany({
-        where: { walletId: uId },
+        where: {
+            walletId: uId,
+            type: type || undefined,
+            createdAt: {
+                gte: startDate ? new Date(startDate) : undefined,
+                lte: endDate ? new Date(endDate) : undefined
+            }
+
+        },
         skip: parseInt(skip),
         take: parseInt(take),
         orderBy: { createdAt: 'desc' },
@@ -217,8 +227,16 @@ export const getWalletByUserId = async (userId) => {
     });
 };
 
-export const getAllWallets = async (skip = 0, take = 10) => {
+export const getAllWallets = async (skip = 0, take = 10, filters = {}) => {
+    const { minBalance, maxBalance } = filters;
+
     return await prisma.wallet.findMany({
+        where: {
+            realBalance: {
+                gte: minBalance ? parseFloat(minBalance) : undefined,
+                lte: maxBalance ? parseFloat(maxBalance) : undefined
+            }
+        },
         skip: parseInt(skip),
         take: parseInt(take),
         include: {
@@ -226,7 +244,7 @@ export const getAllWallets = async (skip = 0, take = 10) => {
                 select: { email: true }
             }
         },
-        orderBy: { realBalance: 'desc' } 
+        orderBy: { realBalance: 'desc' }
     });
 };
 
