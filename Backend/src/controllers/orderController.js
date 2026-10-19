@@ -19,7 +19,13 @@ export const createOrder = async (req, res) => {
 
         const order = await orderService.processOrder(userId, items, idempotencyKey);
 
-        res.status(201).json({ success: true, message: "Order placed successfully!", data: order });
+        const statusCode = order.alreadyProcessed ? 200 : 201;
+        res.status(statusCode).json({
+            success: true,
+            message: order.alreadyProcessed ? "Duplicate request ignored" : "Order placed successfully!",
+            data: order,
+            alreadyProcessed: order.alreadyProcessed || false
+        });
     } catch (error) {
         // Catch PostgreSQL CHECK constraint violation
         // if (error.message.includes('stock_non_negative') || error.code === 'P2004' || error.code === 'P2010') {
@@ -59,8 +65,11 @@ export const cancelOrder = async (req, res) => {
 
         res.status(200).json({
             success: true,
-            message: "Order cancelled successfully. Funds have been refunded to your wallet.",
-            data: order
+            message: order.alreadyProcessed
+                ? "Duplicate request ignored"
+                : "Order cancelled successfully. Funds have been refunded to your wallet.",
+            data: order,
+            alreadyProcessed: order.alreadyProcessed || false
         });
     } catch (error) {
         const statusCode = error.statusCode || 500;

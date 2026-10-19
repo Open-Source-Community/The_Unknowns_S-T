@@ -132,8 +132,66 @@ describe('Order Service - Critical Business Logic', () => {
     });
 
     it('Should throw error if idempotency key is missing', async () => {
-    await expect(processOrder(1, [{ productId: 1, quantity: 1 }], null))
-        .rejects
-        .toThrow("Invalid input: idempotency key is required.");
-});
+        await expect(processOrder(1, [{ productId: 1, quantity: 1 }], null))
+            .rejects
+            .toThrow("Invalid input: idempotency key is required.");
+    });
+
+    it('Should return already processed order if idempotency key exists', async () => {
+        const rawItems = [{ productId: 10, quantity: 1 }];
+        const existingOrder = { id: 888, totalAmount: 100, status: 'PAID' };
+
+        mockPrismaProductFindMany.mockResolvedValue([
+            { id: 10, name: 'Headphones', price: 100, isHidden: false }
+        ]);
+
+        mockTxTransactionFindUnique.mockResolvedValueOnce({
+            id: 1,
+            idempotencyKey: 'test-dup-key',
+            order: existingOrder
+        });
+
+        const result = await processOrder(1, rawItems, 'test-dup-key');
+
+        expect(result.id).toBe(888);
+        expect(result.alreadyProcessed).toBe(true);
+        expect(mockTxOrderCreate).not.toHaveBeenCalled();
+    });
+
+    it('Should catch P2002 race condition on concurrent processOrder and return existing order', async () => {
+        const rawItems = [{ productId: 10, quantity: 1 }];
+        const existingOrder = { id: 888, totalAmount: 100, status: 'PAID' };
+
+        mockPrismaProductFindMany.mockResolvedValue([
+            { id: 10, name: 'Headphones', price: 100, isHidden: false }
+        ]);
+        mockTxWalletFindUnique.mockResolvedValue({
+            userId: 1,
+            realBalance: 1000
+        });
+        mockTxOrderCreate.mockResolvedValue({ id: 888 });
+
+        // First check sees nothing
+        mockTxTransactionFindUnique.mockResolvedValueOnce(null);
+
+        // Transaction create throws P2002
+        mockTxTransactionCreate.mockImplementationOnce(() => {
+            const err = new Error('Unique constraint failed on the fields: (idempotencyKey)');
+            err.code = 'P2002';
+            err.meta = { target: ['idempotencyKey'] };
+            throw err;
+        });
+
+        // Re-fetch sees existing order
+        mockTxTransactionFindUnique.mockResolvedValueOnce({
+            id: 1,
+            idempotencyKey: 'test-race-key',
+            order: existingOrder
+        });
+
+        const result = await processOrder(1, rawItems, 'test-race-key');
+
+        expect(result.id).toBe(888);
+        expect(result.alreadyProcessed).toBe(true);
+    });
 });

@@ -164,6 +164,7 @@ model Product {
   details     ProductDetails? 
   orderItems  OrderItem[]
 
+  @@index([sellerId])
   @@map("products")
 }
 
@@ -190,6 +191,7 @@ model Order {
   items       OrderItem[]
   transactions Transaction[]
 
+  @@index([buyerId])
   @@map("orders")
 }
 
@@ -203,6 +205,8 @@ model OrderItem {
   priceAtPurchase Decimal  @db.Decimal(10, 2) @map("price_at_purchase")
   createdAt       DateTime @default(now()) @map("created_at")
 
+  @@index([orderId])
+  @@index([productId])
   @@map("order_items")
 }
 
@@ -220,6 +224,7 @@ model Transaction {
   description String?             @db.Text
   createdAt   DateTime            @default(now()) @map("created_at")
 
+  @@index([walletId])
   @@map("transactions")
 }
 
@@ -231,6 +236,7 @@ model Notification {
   isRead    Boolean  @default(false) @map("is_read")
   createdAt DateTime @default(now()) @map("created_at")
 
+  @@index([userId])
   @@map("notifications")
 }
 

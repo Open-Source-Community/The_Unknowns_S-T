@@ -10,14 +10,11 @@ export const register = async (req, res) => {
       return res.status(400).json({ success: false, error: "Email and password are required" });
     }
 
-    // 3. SECURITY PATCH: Privilege Escalation Prevention
-    // Only allow 'Seller' or 'Buyer'. If they try to pass 'Admin', default them to 'Buyer'.
-    const safeRole = role === 'Seller' ? 'Seller' : 'Buyer';
-
+    // 3. SECURITY: Force role to 'Buyer' on public registration (prevent privilege escalation)
     const safeUserData = {
       email,
       password,
-      role: safeRole
+      role: 'Buyer'
     };
 
     // 4. Pass only the sanitized object to the service
