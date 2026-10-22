@@ -90,6 +90,27 @@ describe('Wallet Service Unit Tests (FR-17)', () => {
     expect(mockUpdateWallet).not.toHaveBeenCalled();
   });
 
+  test('Should catch P2002 collision during concurrent deposit and return alreadyProcessed: true', async () => {
+    mockFindUniqueTx.mockResolvedValueOnce(null);
+    mockCreateTx.mockImplementationOnce(() => {
+      const error = new Error('Unique constraint failed on the fields: (idempotencyKey)');
+      error.code = 'P2002';
+      error.meta = { target: ['idempotencyKey'] };
+      throw error;
+    });
+    mockFindUniqueTx.mockResolvedValueOnce({
+      id: 99,
+      idempotencyKey: "race-key-1",
+      wallet: { userId: 1, realBalance: 500 }
+    });
+
+    mockFindUniqueUser.mockResolvedValueOnce({ id: 1, wallet: { userId: 1 } });
+    const result = await depositToWallet(1, 100, "Deposit", "race-key-1");
+
+    expect(result.alreadyProcessed).toBe(true);
+    expect(result.wallet.realBalance).toBe(500);
+  });
+
   test('Should handle string IDs correctly using parseInt', async () => {
     mockFindUniqueTx.mockResolvedValueOnce(null);
     mockFindUniqueWallet.mockResolvedValueOnce({ userId: 1, realBalance: 500 });
