@@ -51,68 +51,59 @@ export const processOrder = async (buyerId, rawItems, idempotencyKey) => {
     });
 
     // 2. Execute the Composite Transaction with Idempotency
-    return await prisma.$transaction(async (tx) => {
-        return await withIdempotency(tx, idempotencyKey, async () => {
-            // A. Verify Wallet Balance
-            const wallet = await tx.wallet.findUnique({ where: { userId: bId } });
-            if (!wallet || parseFloat(wallet.realBalance) < totalAmount) {
-                throw new Error("Insufficient wallet balance to complete this purchase.");
-            }
+    return await withIdempotency(prisma, idempotencyKey, TransactionCategory.PURCHASE, async (tx) => {
+        // A. Verify Wallet Balance
+        const wallet = await tx.wallet.findUnique({ where: { userId: bId } });
+        if (!wallet || parseFloat(wallet.realBalance) < totalAmount) {
+            throw new Error("Insufficient wallet balance to complete this purchase.");
+        }
 
-            // B. Create the Order and OrderItems
-            const order = await tx.order.create({
-                data: {
-                    buyerId: bId,
-                    // idempotencyKey: idempotencyKey ,
-                    // referenceId: `ORD-PAY-${Date.now()}-${crypto.randomBytes(3).toString('hex').toUpperCase()}`,
-                    status: OrderStatus.PAID,
-                    totalAmount: totalAmount,
-                    items: {
-                        create: orderItemsData
-                    }
-                },
-                include: { items: true }
-            });
-
-            // C. Deduct from Wallet & Create Ledger Transaction
-            await tx.wallet.update({
-                where: { userId: bId },
-                data: { realBalance: { decrement: totalAmount } }
-            });
-
-            await tx.transaction.create({
-                data: {
-                    walletId: bId,
-                    orderId: order.id, // Linking the transaction to the order.
-                    amount: totalAmount,
-                    type: TransactionType.DEBIT,
-                    category: TransactionCategory.PURCHASE,
-                    idempotencyKey: idempotencyKey,
-                    description: `Payment for Order #${order.id}`,
-                    referenceId: `ORD-PAY-${Date.now()}-${crypto.randomBytes(3).toString('hex').toUpperCase()}`
+        // B. Create the Order and OrderItems
+        const order = await tx.order.create({
+            data: {
+                buyerId: bId,
+                // idempotencyKey: idempotencyKey ,
+                // referenceId: `ORD-PAY-${Date.now()}-${crypto.randomBytes(3).toString('hex').toUpperCase()}`,
+                status: OrderStatus.PAID,
+                totalAmount: totalAmount,
+                items: {
+                    create: orderItemsData
                 }
-            });
+            },
+            include: { items: true }
+        });
 
-            // D. Deduct Product Stock
-            // If this pushes stock < 0, the PostgreSQL CHECK constraint will fail, throwing an error and rolling back EVERYTHING.
-            for (const item of items) {
-                await tx.product.update({
-                    where: { id: item.productId },
-                    data: { stock: { decrement: item.quantity } }
-                });
-            }
+        // C. Deduct from Wallet & Create Ledger Transaction
+        await tx.wallet.update({
+            where: { userId: bId },
+            data: { realBalance: { decrement: totalAmount } }
+        });
 
-            return { ...order, alreadyProcessed: false };
-        }, {
-            validateExisting: (existing) => {
-                if (!existing.order) {
-                    const error = new Error("Invalid Idempotency Key: This key has already been used for a different transaction type.");
-                    error.statusCode = 400;
-                    throw error;
-                }
+        await tx.transaction.create({
+            data: {
+                walletId: bId,
+                orderId: order.id, // Linking the transaction to the order.
+                amount: totalAmount,
+                type: TransactionType.DEBIT,
+                category: TransactionCategory.PURCHASE,
+                idempotencyKey: idempotencyKey,
+                description: `Payment for Order #${order.id}`,
+                referenceId: `ORD-PAY-${Date.now()}-${crypto.randomBytes(3).toString('hex').toUpperCase()}`
             }
         });
+
+        // D. Deduct Product Stock
+        // If this pushes stock < 0, the PostgreSQL CHECK constraint will fail, throwing an error and rolling back EVERYTHING.
+        for (const item of items) {
+            await tx.product.update({
+                where: { id: item.productId },
+                data: { stock: { decrement: item.quantity } }
+            });
+        }
+
+        return { ...order, alreadyProcessed: false };
     });
+
 };
 
 export const getOrdersByUserId = async (buyerId) => {
@@ -162,46 +153,45 @@ export const cancelOrder = async (orderId, userId, role, idempotencyKey) => {
         throw err;
     }
 
-    const refundKey = idempotencyKey ? `${idempotencyKey}-REF` : null;
+    const refundKey = idempotencyKey ? `${idempotencyKey}-REF-${oId}` : `REF-${oId}`;
 
     // 4. The Reverse Composite Transaction with Idempotency
-    return await prisma.$transaction(async (tx) => {
-        return await withIdempotency(tx, refundKey, async () => {
-            // A. Update Order Status
-            const updatedOrder = await tx.order.update({
-                where: { id: oId },
-                data: { status: OrderStatus.CANCELLED }
-            });
 
-            // B. Refund the Wallet
-            await tx.wallet.update({
-                where: { userId: order.buyerId },
-                data: { realBalance: { increment: order.totalAmount } }
-            });
-
-            // C. Create the Refund Ledger Transaction
-            await tx.transaction.create({
-                data: {
-                    walletId: order.buyerId,
-                    orderId: oId,
-                    amount: order.totalAmount, // Stored as absolute positive value!
-                    type: TransactionType.CREDIT,
-                    category: TransactionCategory.REFUND,
-                    idempotencyKey: refundKey,
-                    description: `Refund for Cancelled Order #${oId}`,
-                    referenceId: `ORD-REF-${Date.now()}-${crypto.randomBytes(3).toString('hex').toUpperCase()}`
-                }
-            });
-
-            // D. Restore the Product Stock
-            for (const item of order.items) {
-                await tx.product.update({
-                    where: { id: item.productId },
-                    data: { stock: { increment: item.quantity } }
-                });
-            }
-
-            return { ...updatedOrder, alreadyProcessed: false };
+    return await withIdempotency(prisma, refundKey, TransactionCategory.REFUND, async (tx) => {
+        // A. Update Order Status
+        const updatedOrder = await tx.order.update({
+            where: { id: oId },
+            data: { status: OrderStatus.CANCELLED }
         });
+
+        // B. Refund the Wallet
+        await tx.wallet.update({
+            where: { userId: order.buyerId },
+            data: { realBalance: { increment: order.totalAmount } }
+        });
+
+        // C. Create the Refund Ledger Transaction
+        await tx.transaction.create({
+            data: {
+                walletId: order.buyerId,
+                orderId: oId,
+                amount: order.totalAmount, // Stored as absolute positive value!
+                type: TransactionType.CREDIT,
+                category: TransactionCategory.REFUND,
+                idempotencyKey: refundKey,
+                description: `Refund for Cancelled Order #${oId}`,
+                referenceId: `ORD-REF-${Date.now()}-${crypto.randomBytes(3).toString('hex').toUpperCase()}`
+            }
+        });
+
+        // D. Restore the Product Stock
+        for (const item of order.items) {
+            await tx.product.update({
+                where: { id: item.productId },
+                data: { stock: { increment: item.quantity } }
+            });
+        }
+
+        return { ...updatedOrder, alreadyProcessed: false };
     });
 };

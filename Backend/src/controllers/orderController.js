@@ -18,29 +18,36 @@ export const createOrder = async (req, res) => {
         }
 
         const order = await orderService.processOrder(userId, items, idempotencyKey);
-
+        const orderData = order.order || order.transaction?.order || order;
         const statusCode = order.alreadyProcessed ? 200 : 201;
         res.status(statusCode).json({
             success: true,
             message: order.alreadyProcessed ? "Duplicate request ignored" : "Order placed successfully!",
-            data: order,
+            data: order.alreadyProcessed ? orderData : order,
             alreadyProcessed: order.alreadyProcessed || false
         });
     } catch (error) {
-        // Catch PostgreSQL CHECK constraint violation
-        // if (error.message.includes('stock_non_negative') || error.code === 'P2004' || error.code === 'P2010') {
-
-        if (error.code === 'P2002' || error.code === 'P2004' ||
-            error.code === 'P2010' || error.message.includes('stock')) {
-            return res.status(400).json({
+        if (error.code === 'P2002') {
+            return res.status(409).json({
                 success: false,
-                error: "Checkout failed: One or more items in your cart do not have enough stock available."
+                error: "Duplicate request: You have already placed this order. Please refresh the page."
             });
         }
 
+        if (error.message === 'INSUFFICIENT_BALANCE') {
+            return res.status(400).json({ error: "Insufficient wallet balance..." });
+        }
+
+        if (error.code === 'P2004' || error.code === 'P2010' || error.message?.includes('stock_non_negative')) {
+            return res.status(400).json({
+                success: false,
+                error: "Checkout failed. An item may be out of stock, or your balance may be insufficient."
+            });
+        }
+
+
         // Catch Wallet & Validation errors
-        const statusCode = error.message.includes("Insufficient") || error.message.includes("unavailable") ? 400 : 500;
-        res.status(statusCode).json({ success: false, error: error.message });
+        return res.status(400).json({ success: false, error: "Checkout failed. An item may be out of stock, or your balance may be insufficient. " });
     }
 };
 

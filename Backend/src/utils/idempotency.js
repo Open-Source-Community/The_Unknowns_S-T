@@ -1,9 +1,7 @@
-import prisma from '../config/prisma.js';
-
-export const withIdempotency = async (tx, idempotencyKey, fn, options = {}) => {
+export const withIdempotency = async (prisma, idempotencyKey, category, fn, options = {}) => {
   // throw error if idempotency key is not provided
-  if (!idempotencyKey) {
-    throw new Error("Idempotency key is required");
+  if (!idempotencyKey || !category) {
+    throw new Error("Idempotency key and category are required");
   }
 
   // format result after execution method
@@ -34,23 +32,19 @@ export const withIdempotency = async (tx, idempotencyKey, fn, options = {}) => {
 
   // fetch existing record method
   const fetchExisting = async () => {
-    try {
-      return await tx.transaction.findUnique({
-        where: { idempotencyKey: idempotencyKey },
-        include: {
-          wallet: true,
-          order: { include: { items: true } }
+
+    return await prisma.transaction.findUnique({
+      where: {
+        idempotencyKey_category: {
+          idempotencyKey,
+          category
         }
-      });
-    } catch {
-      return await tx.transaction.findUnique({
-        where: { idempotencyKey: idempotencyKey },
-        include: {
-          wallet: true,
-          order: { include: { items: true } }
-        }
-      });
-    }
+      },
+      include: {
+        wallet: true,
+        order: { include: { items: true } }
+      }
+    });
   };
 
   // main logic
@@ -62,7 +56,9 @@ export const withIdempotency = async (tx, idempotencyKey, fn, options = {}) => {
 
   // 2. Run fn inside the transaction, catch P2002 collision
   try {
-    return await fn();
+    return await prisma.$transaction(async (tx) => {
+      return await fn(tx);
+    })
   } catch (error) {
     if (error.code === 'P2002') {
       const collisionRecord = await fetchExisting();

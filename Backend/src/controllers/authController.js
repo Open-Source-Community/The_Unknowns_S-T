@@ -4,17 +4,20 @@ export const register = async (req, res) => {
   try {
     // 1. Extract exactly what we expect from the body
     const { email, password, role } = req.body;
-    
+
     // 2. Input validation
     if (!email || !password) {
       return res.status(400).json({ success: false, error: "Email and password are required" });
     }
 
-    // 3. SECURITY: Force role to 'Buyer' on public registration (prevent privilege escalation)
+
+    // SECURITY: Force role to 'Buyer' on public registration (prevent privilege escalation)
+    const safeRole = role === 'Seller' ? 'Seller' : 'Buyer';
+
     const safeUserData = {
       email,
       password,
-      role: 'Buyer'
+      role: safeRole
     };
 
     // 4. Pass only the sanitized object to the service
@@ -28,16 +31,16 @@ export const register = async (req, res) => {
     console.error("Registration Error:", error);
 
     if (error.message === 'WEAK_PASSWORD') {
-      return res.status(400).json({ 
-        success: false, 
-        error: "Password must be at least 8 characters long and include an uppercase letter, a lowercase letter, and a number." 
+      return res.status(400).json({
+        success: false,
+        error: "Password must be at least 8 characters long and include an uppercase letter, a lowercase letter, and a number."
       });
     }
-    
+
     if (error.code === 'P2002') {
       return res.status(400).json({ success: false, error: "Email already exists" });
     }
-    
+
     res.status(500).json({ success: false, error: "Internal Server Error" });
   }
 };
@@ -55,14 +58,14 @@ export const fetchUsers = async (req, res) => {
 export const login = async (req, res) => {
   try {
     const { email, password } = req.body;
-    
+
     // Basic validation
     if (!email || !password) {
       return res.status(400).json({ success: false, error: "Email and password are required" });
     }
 
     const authData = await loginUser(email, password);
-    
+
     res.status(200).json({
       success: true,
       message: "Login successful!",
@@ -86,7 +89,7 @@ export const getProfile = async (req, res) => {
       return res.status(401).json({ success: false, error: "Unauthorized" });
     }
 
-    const { userId } = req.user; 
+    const { userId } = req.user;
 
     const user = await getUserProfile(userId);
 
