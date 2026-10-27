@@ -1,13 +1,14 @@
 import prisma from '../config/prisma.js';
 import crypto from 'crypto';
 import { TransactionType, TransactionCategory, OrderStatus } from '../data/constants.js';
+import { withIdempotency } from '../utils/idempotency.js';
 
-export const processOrder = async (buyerId, rawItems,idempotencyKey) => {
+export const processOrder = async (buyerId, rawItems, idempotencyKey) => {
     const bId = parseInt(buyerId);
 
     if (!bId) throw new Error("Invalid input: buyer id is required.");
     if (!idempotencyKey) throw new Error("Invalid input: idempotency key is required.");
-    
+
     const consolidatedItems = {};
     for (const item of rawItems) {
         if (consolidatedItems[item.productId]) {
@@ -49,27 +50,8 @@ export const processOrder = async (buyerId, rawItems,idempotencyKey) => {
         };
     });
 
-    // 2. Execute the Composite Transaction
-    return await prisma.$transaction(async (tx) => {
-        if (idempotencyKey) {
-            const existing = await tx.transaction.findUnique({
-                where: { idempotencyKey },
-                include: { order: { include: { items: true } } }
-            });
-            
-            if (existing) {
-                if (existing.order) {
-                    return existing.order; // Return the successfully processed order
-                } else {
-                    // Prevent the 500 crash by stopping execution if the key belongs to a Wallet op
-                    const error = new Error("Invalid Idempotency Key: This key has already been used for a different transaction type.");
-                    error.statusCode = 400;
-                    throw error;
-                }
-            }
-        }
-
-      
+    // 2. Execute the Composite Transaction with Idempotency
+    return await withIdempotency(prisma, idempotencyKey, TransactionCategory.PURCHASE, async (tx) => {
         // A. Verify Wallet Balance
         const wallet = await tx.wallet.findUnique({ where: { userId: bId } });
         if (!wallet || parseFloat(wallet.realBalance) < totalAmount) {
@@ -104,7 +86,7 @@ export const processOrder = async (buyerId, rawItems,idempotencyKey) => {
                 amount: totalAmount,
                 type: TransactionType.DEBIT,
                 category: TransactionCategory.PURCHASE,
-                idempotencyKey: idempotencyKey ,
+                idempotencyKey: idempotencyKey,
                 description: `Payment for Order #${order.id}`,
                 referenceId: `ORD-PAY-${Date.now()}-${crypto.randomBytes(3).toString('hex').toUpperCase()}`
             }
@@ -119,8 +101,9 @@ export const processOrder = async (buyerId, rawItems,idempotencyKey) => {
             });
         }
 
-        return order;
+        return { ...order, alreadyProcessed: false };
     });
+
 };
 
 export const getOrdersByUserId = async (buyerId) => {
@@ -170,14 +153,11 @@ export const cancelOrder = async (orderId, userId, role, idempotencyKey) => {
         throw err;
     }
 
-    // 4. The Reverse Composite Transaction
-    return await prisma.$transaction(async (tx) => {
-       if (idempotencyKey) {
-    const existing = await tx.transaction.findUnique({
-        where: { idempotencyKey: `${idempotencyKey}-REF` }
-    });
-    if (existing) return await tx.order.findUnique({ where: { id: oId } });
-}
+    const refundKey = idempotencyKey ? `${idempotencyKey}-REF-${oId}` : `REF-${oId}`;
+
+    // 4. The Reverse Composite Transaction with Idempotency
+
+    return await withIdempotency(prisma, refundKey, TransactionCategory.REFUND, async (tx) => {
         // A. Update Order Status
         const updatedOrder = await tx.order.update({
             where: { id: oId },
@@ -198,7 +178,7 @@ export const cancelOrder = async (orderId, userId, role, idempotencyKey) => {
                 amount: order.totalAmount, // Stored as absolute positive value!
                 type: TransactionType.CREDIT,
                 category: TransactionCategory.REFUND,
-                idempotencyKey: idempotencyKey ? `${idempotencyKey}-REF` : null,
+                idempotencyKey: refundKey,
                 description: `Refund for Cancelled Order #${oId}`,
                 referenceId: `ORD-REF-${Date.now()}-${crypto.randomBytes(3).toString('hex').toUpperCase()}`
             }
@@ -212,6 +192,6 @@ export const cancelOrder = async (orderId, userId, role, idempotencyKey) => {
             });
         }
 
-        return updatedOrder;
+        return { ...updatedOrder, alreadyProcessed: false };
     });
 };

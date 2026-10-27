@@ -65,7 +65,8 @@ export const loginUser = async (email, password) => {
     where: { email } 
   });
   
-  if (!user) {
+  // Reject if user does not exist or has been deactivated/soft-deleted
+  if (!user || user.isActive === false) {
     throw new Error('INVALID_CREDENTIALS');
   }
 
