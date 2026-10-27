@@ -212,16 +212,13 @@ export const getAllWalletsForAdmin = async (req, res) => {
 
     const wallets = await getAllWallets(skip, take, filters);
 
-    if (!wallets || wallets.length === 0) {
-      return res.status(404).json({ success: false, error: "No Wallets found" });
-    }
-
     res.status(200).json({
       success: true,
       count: wallets.length,
       data: wallets
     });
   } catch (error) {
+    console.error('getAllWalletsForAdmin error:', error);
     return res.status(error.statusCode || 500).json({
       success: false,
       error: error.message

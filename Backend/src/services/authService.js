@@ -25,7 +25,7 @@ export const createNewUser = async (userData) => {
     data: {
       email,
       passwordHash: hashedPassword, // Save the hash, not the plain text
-      role: 'Buyer', // Always force 'Buyer' on registration
+      role: role,
       wallet: {
         create: {
           realBalance: 0,

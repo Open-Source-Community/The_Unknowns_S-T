@@ -34,20 +34,17 @@ export const createOrder = async (req, res) => {
             });
         }
 
-        if (error.message === 'INSUFFICIENT_BALANCE') {
-            return res.status(400).json({ error: "Insufficient wallet balance..." });
-        }
-
-        if (error.code === 'P2004' || error.code === 'P2010' || error.message?.includes('stock_non_negative')) {
+        if (error.code === 'P2004' || error.code === 'P2010' || error.message?.includes('stock_non_negative') ||
+            error.message?.includes('Insufficient wallet balance') || error.message?.includes('unavailable') ||
+            error.message?.includes('Invalid input')) {
             return res.status(400).json({
                 success: false,
                 error: "Checkout failed. An item may be out of stock, or your balance may be insufficient."
             });
         }
 
-
-        // Catch Wallet & Validation errors
-        return res.status(400).json({ success: false, error: "Checkout failed. An item may be out of stock, or your balance may be insufficient. " });
+        console.error('Unhandled order error:', error);
+        return res.status(500).json({ success: false, error: "Internal server error" });
     }
 };
 

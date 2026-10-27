@@ -93,26 +93,50 @@ describe('Auth Service & Registration Logic', () => {
       );
     });
 
-    it('createNewUser service should strictly ignore incoming role and save Buyer', async () => {
+    it('should preserve Seller role when registering as Seller via register controller', async () => {
       mockPrismaUserCreate.mockImplementation(async ({ data }) => ({
-        id: 2,
+        id: 3,
         email: data.email,
         role: data.role,
-        wallet: { id: 2 },
+        passwordHash: 'hashed_pw',
+        wallet: { id: 3, realBalance: 0, promoBalance: 0 },
       }));
-
-      const result = await createNewUser({
-        email: 'attacker2@test.com',
-        password: 'StrongPassword123',
-        role: 'Admin',
-      });
-
-      expect(result.role).toBe('Buyer');
+    
+      const req = {
+        body: { email: 'seller@test.com', password: 'StrongPassword123', role: 'Seller' },
+      };
+      const res = mockRes();
+    
+      await register(req, res);
+    
+      expect(res.status).toHaveBeenCalledWith(201);
       expect(mockPrismaUserCreate).toHaveBeenCalledWith(
         expect.objectContaining({
-          data: expect.objectContaining({
-            role: 'Buyer',
-          }),
+          data: expect.objectContaining({ role: 'Seller' }),
+        })
+      );
+    });
+    
+    it('should reject Admin role when registering via register controller (defaults to Buyer)', async () => {
+      mockPrismaUserCreate.mockImplementation(async ({ data }) => ({
+        id: 4,
+        email: data.email,
+        role: data.role,
+        passwordHash: 'hashed_pw',
+        wallet: { id: 4, realBalance: 0, promoBalance: 0 },
+      }));
+    
+      const req = {
+        body: { email: 'attacker@test.com', password: 'StrongPassword123', role: 'Admin' },
+      };
+      const res = mockRes();
+    
+      await register(req, res);
+    
+      expect(res.status).toHaveBeenCalledWith(201);
+      expect(mockPrismaUserCreate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ role: 'Buyer' }),
         })
       );
     });
