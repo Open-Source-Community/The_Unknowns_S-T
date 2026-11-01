@@ -18,23 +18,33 @@ export const createOrder = async (req, res) => {
         }
 
         const order = await orderService.processOrder(userId, items, idempotencyKey);
-
-        res.status(201).json({ success: true, message: "Order placed successfully!", data: order });
+        const orderData = order.order || order.transaction?.order || order;
+        const statusCode = order.alreadyProcessed ? 200 : 201;
+        res.status(statusCode).json({
+            success: true,
+            message: order.alreadyProcessed ? "Duplicate request ignored" : "Order placed successfully!",
+            data: order.alreadyProcessed ? orderData : order,
+            alreadyProcessed: order.alreadyProcessed || false
+        });
     } catch (error) {
-        // Catch PostgreSQL CHECK constraint violation
-        // if (error.message.includes('stock_non_negative') || error.code === 'P2004' || error.code === 'P2010') {
-
-        if (error.code === 'P2002' || error.code === 'P2004' ||
-            error.code === 'P2010' || error.message.includes('stock')) {
-            return res.status(400).json({
+        if (error.code === 'P2002') {
+            return res.status(409).json({
                 success: false,
-                error: "Checkout failed: One or more items in your cart do not have enough stock available."
+                error: "Duplicate request: You have already placed this order. Please refresh the page."
             });
         }
 
-        // Catch Wallet & Validation errors
-        const statusCode = error.message.includes("Insufficient") || error.message.includes("unavailable") ? 400 : 500;
-        res.status(statusCode).json({ success: false, error: error.message });
+        if (error.code === 'P2004' || error.code === 'P2010' || error.message?.includes('stock_non_negative') ||
+            error.message?.includes('Insufficient wallet balance') || error.message?.includes('unavailable') ||
+            error.message?.includes('Invalid input')) {
+            return res.status(400).json({
+                success: false,
+                error: "Checkout failed. An item may be out of stock, or your balance may be insufficient."
+            });
+        }
+
+        console.error('Unhandled order error:', error);
+        return res.status(500).json({ success: false, error: "Internal server error" });
     }
 };
 
@@ -59,8 +69,11 @@ export const cancelOrder = async (req, res) => {
 
         res.status(200).json({
             success: true,
-            message: "Order cancelled successfully. Funds have been refunded to your wallet.",
-            data: order
+            message: order.alreadyProcessed
+                ? "Duplicate request ignored"
+                : "Order cancelled successfully. Funds have been refunded to your wallet.",
+            data: order,
+            alreadyProcessed: order.alreadyProcessed || false
         });
     } catch (error) {
         const statusCode = error.statusCode || 500;

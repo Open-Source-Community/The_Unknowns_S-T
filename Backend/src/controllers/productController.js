@@ -48,14 +48,18 @@ export const createProduct = async (req, res) => {
 
         const sellerId = req.user.userId;
 
-        if (!name || !price || !stock) {
+        if (
+            !name ||
+            price === undefined || price === null || price === '' || isNaN(Number(price)) || Number(price) < 0 ||
+            stock === undefined || stock === null || stock === '' || isNaN(Number(stock)) || Number(stock) < 0
+        ) {
             return res.status(400).json({ success: false, message: "Missing required fields: name, price, and stock are required." });
         }
 
         const newProduct = await productService.createProduct({
             name,
             price: parseFloat(price),
-            stock: parseInt(stock || 0),
+            stock: parseInt(stock, 10),
             category: category || "General",
             sellerId: sellerId
         });

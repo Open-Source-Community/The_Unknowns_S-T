@@ -12,9 +12,17 @@ jest.unstable_mockModule('../src/config/prisma.js', () => ({
     }
 }));
 
-// 2. Dynamically import Prisma and the service AFTER the mock is registered
+// 2. Dynamically import Prisma, service, and controller AFTER the mock is registered
 const { default: prisma } = await import('../src/config/prisma.js');
 const productService = await import('../src/services/productService.js');
+const { createProduct: createProductController } = await import('../src/controllers/productController.js');
+
+const mockRes = () => {
+    const res = {};
+    res.status = jest.fn().mockReturnValue(res);
+    res.json = jest.fn().mockReturnValue(res);
+    return res;
+};
 
 describe('Product Service', () => {
     
@@ -137,6 +145,63 @@ describe('Product Service', () => {
                 data: { isHidden: true }
             });
             expect(result.isHidden).toBe(true);
+        });
+    });
+
+    describe('Product Price & Stock Zero-Value Edge Cases', () => {
+        it('should accept price: 0 and stock: 0 in createProduct controller', async () => {
+            prisma.product.create.mockResolvedValue({
+                id: 50,
+                name: 'Free Promotional Item',
+                price: 0,
+                stock: 0,
+                category: 'Promo',
+                sellerId: 1,
+            });
+
+            const req = {
+                user: { userId: 1, role: 'Seller' },
+                body: {
+                    name: 'Free Promotional Item',
+                    price: 0,
+                    stock: 0,
+                    category: 'Promo',
+                },
+            };
+            const res = mockRes();
+
+            await createProductController(req, res);
+
+            expect(res.status).toHaveBeenCalledWith(201);
+            expect(res.json).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    success: true,
+                    data: expect.objectContaining({
+                        name: 'Free Promotional Item',
+                    }),
+                })
+            );
+        });
+
+        it('should reject negative price or negative stock in createProduct controller', async () => {
+            const req = {
+                user: { userId: 1, role: 'Seller' },
+                body: {
+                    name: 'Invalid Item',
+                    price: -5,
+                    stock: 10,
+                },
+            };
+            const res = mockRes();
+
+            await createProductController(req, res);
+
+            expect(res.status).toHaveBeenCalledWith(400);
+            expect(res.json).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    success: false,
+                })
+            );
         });
     });
 });

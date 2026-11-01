@@ -2,28 +2,35 @@ import { jest } from '@jest/globals';
 
 // 1. Setup Prisma Mocks
 const mockPrismaProductFindMany = jest.fn();
+// Top-level prisma mocks — used by withIdempotency's fetchExisting() BEFORE/AFTER $transaction
+const mockPrismaTransactionFindUnique = jest.fn();
+// tx-level mocks — used INSIDE the $transaction callback (fn(tx))
 const mockTxWalletFindUnique = jest.fn();
 const mockTxOrderCreate = jest.fn();
 const mockTxWalletUpdate = jest.fn();
 const mockTxTransactionCreate = jest.fn();
 const mockTxProductUpdate = jest.fn();
-const mockTxTransactionFindUnique = jest.fn();
 
-// Mock the Prisma client, specifically handling the complex $transaction callback
+// Mock the Prisma client.
+// withIdempotency now owns $transaction internally:
+//   - fetchExisting() calls prisma.transaction.findUnique (top-level, outside tx)
+//   - fn(tx) runs inside prisma.$transaction and receives the tx object
 jest.unstable_mockModule('../src/config/prisma.js', () => ({
     default: {
         product: { findMany: mockPrismaProductFindMany },
+        transaction: { findUnique: mockPrismaTransactionFindUnique },
         $transaction: jest.fn(async (callback) => {
-            // Execute the callback immediately with our mocked transaction object (tx)
+            // Execute the callback with a mocked tx object
             return await callback({
-                wallet: { 
-                    findUnique: mockTxWalletFindUnique, 
-                    update: mockTxWalletUpdate 
+                wallet: {
+                    findUnique: mockTxWalletFindUnique,
+                    update: mockTxWalletUpdate
                 },
                 order: { create: mockTxOrderCreate },
-                transaction: { create: mockTxTransactionCreate,
-                    findUnique:mockTxTransactionFindUnique
-                 },
+                transaction: {
+                    create: mockTxTransactionCreate,
+                    findUnique: jest.fn() // tx-level findUnique (not used by withIdempotency after refactor)
+                },
                 product: { update: mockTxProductUpdate }
             });
         })
@@ -37,7 +44,8 @@ describe('Order Service - Critical Business Logic', () => {
 
     beforeEach(() => {
         jest.clearAllMocks();
-          mockTxTransactionFindUnique.mockResolvedValue(null);
+        // Default: no existing idempotency record (fresh request)
+        mockPrismaTransactionFindUnique.mockResolvedValue(null);
     });
 
     it('CRITICAL: Should consolidate duplicate cart items and calculate correct totals', async () => {
@@ -46,7 +54,7 @@ describe('Order Service - Critical Business Logic', () => {
         // Frontend sends a buggy/malicious cart with split duplicates
         const rawItems = [
             { productId: 10, quantity: 2 },
-            { productId: 10, quantity: 3 } 
+            { productId: 10, quantity: 3 }
         ];
 
         // Mock the product lookup to return our single product
@@ -57,7 +65,7 @@ describe('Order Service - Critical Business Logic', () => {
         // Mock the wallet lookup to have plenty of money ($1000)
         mockTxWalletFindUnique.mockResolvedValue({
             userId: buyerId,
-            realBalance: 1000 
+            realBalance: 1000
         });
 
         // Mock the order creation to return a dummy order
@@ -101,7 +109,7 @@ describe('Order Service - Critical Business Logic', () => {
         await expect(processOrder(1, rawItems, 'test-key-2'))
             .rejects
             .toThrow("One or more products are unavailable or do not exist.");
-            
+
         // Ensure the transaction never even started
         expect(mockTxOrderCreate).not.toHaveBeenCalled();
     });
@@ -119,21 +127,88 @@ describe('Order Service - Critical Business Logic', () => {
         // Mock wallet with only $100 (Insufficient!)
         mockTxWalletFindUnique.mockResolvedValue({
             userId: 1,
-            realBalance: 100 
+            realBalance: 100
         });
 
         // Act & Assert
         await expect(processOrder(1, rawItems, 'test-key-3'))
             .rejects
             .toThrow("Insufficient wallet balance to complete this purchase.");
-            
+
         // Ensure money was NEVER deducted
         expect(mockTxWalletUpdate).not.toHaveBeenCalled();
     });
 
     it('Should throw error if idempotency key is missing', async () => {
-    await expect(processOrder(1, [{ productId: 1, quantity: 1 }], null))
-        .rejects
-        .toThrow("Invalid input: idempotency key is required.");
-});
+        await expect(processOrder(1, [{ productId: 1, quantity: 1 }], null))
+            .rejects
+            .toThrow("Invalid input: idempotency key is required.");
+    });
+
+    it('Should return already processed order if idempotency key exists', async () => {
+        const rawItems = [{ productId: 10, quantity: 1 }];
+        const existingOrder = { id: 888, totalAmount: 100, status: 'PAID' };
+
+        mockPrismaProductFindMany.mockResolvedValue([
+            { id: 10, name: 'Headphones', price: 100, isHidden: false }
+        ]);
+
+        // withIdempotency's fetchExisting() runs on top-level prisma, not tx
+        mockPrismaTransactionFindUnique.mockResolvedValueOnce({
+            id: 1,
+            idempotencyKey: 'test-dup-key',
+            category: 'Purchase',
+            wallet: null,
+            order: existingOrder
+        });
+
+        const result = await processOrder(1, rawItems, 'test-dup-key');
+
+        expect(result.id).toBe(888);
+        expect(result.alreadyProcessed).toBe(true);
+        // $transaction should never be called — early return before it
+        expect(mockTxOrderCreate).not.toHaveBeenCalled();
+    });
+
+    it('Should catch P2002 race condition on concurrent processOrder and return existing order', async () => {
+        // NOTE: This test verifies the mock-level behavior of the P2002 catch.
+        // Real aborted-transaction semantics cannot be simulated in Jest —
+        // the fix (catch outside $transaction) is what makes this correct in prod.
+        const rawItems = [{ productId: 10, quantity: 1 }];
+        const existingOrder = { id: 888, totalAmount: 100, status: 'PAID' };
+
+        mockPrismaProductFindMany.mockResolvedValue([
+            { id: 10, name: 'Headphones', price: 100, isHidden: false }
+        ]);
+        mockTxWalletFindUnique.mockResolvedValue({
+            userId: 1,
+            realBalance: 1000
+        });
+        mockTxOrderCreate.mockResolvedValue({ id: 888 });
+
+        // First fetchExisting call sees nothing (before $transaction)
+        mockPrismaTransactionFindUnique.mockResolvedValueOnce(null);
+
+        // Transaction create (inside $transaction) throws P2002
+        mockTxTransactionCreate.mockImplementationOnce(() => {
+            const err = new Error('Unique constraint failed on the fields: (idempotencyKey,category)');
+            err.code = 'P2002';
+            err.meta = { target: ['idempotencyKey', 'category'] };
+            throw err;
+        });
+
+        // Second fetchExisting call (after P2002 catch, fresh prisma connection) finds the winner
+        mockPrismaTransactionFindUnique.mockResolvedValueOnce({
+            id: 1,
+            idempotencyKey: 'test-race-key',
+            category: 'Purchase',
+            wallet: null,
+            order: existingOrder
+        });
+
+        const result = await processOrder(1, rawItems, 'test-race-key');
+
+        expect(result.id).toBe(888);
+        expect(result.alreadyProcessed).toBe(true);
+    });
 });
